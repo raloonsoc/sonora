@@ -1,0 +1,52 @@
+# Binaries
+/bin/
+/dist/
+sonora
+sonora.exe
+
+# Go build/test artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Go workspace / vendor
+/vendor/
+go.work
+go.work.sum
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local music library / media (never commit user content)
+/library/
+/incoming/
+/music/
+
+# Transcode cache
+/cache/
+/tmp/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+
+# Air / live reload (common in Go dev)
+tmp/
+.air.toml.local
+
+# Local AI assistant context (not for public repo)
+CLAUDE.md
