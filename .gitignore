@@ -4,6 +4,9 @@
 sonora
 sonora.exe
 
+# Throwaway test binaries occasionally built directly in repo root via
+# `go build ./cmd/footest/...` — always delete them manually when done.
+
 # Go build/test artifacts
 *.exe
 *.exe~

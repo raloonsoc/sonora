@@ -1,0 +1,49 @@
+package streaming
+
+import (
+	"net/http"
+	"os"
+
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/raloonsoc/sonora/internal/db/sqlc"
+)
+
+type Handler struct {
+	Queries *sqlc.Queries
+}
+
+func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
+	idParam := r.URL.Query().Get("id")
+	if idParam == "" {
+		http.Error(w, "missing id parameter", http.StatusBadRequest)
+		return
+	}
+
+	var trackID pgtype.UUID
+	if err := trackID.Scan(idParam); err != nil {
+		http.Error(w, "invalid id paramater", http.StatusBadRequest)
+		return
+	}
+
+	track, err := h.Queries.GetTrack(r.Context(), trackID)
+	if err != nil {
+		http.Error(w, "track not found", http.StatusNotFound)
+		return
+	}
+
+	file, err := os.Open(track.Path)
+	if err != nil {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	http.ServeContent(w, r, info.Name(), info.ModTime(), file)
+}

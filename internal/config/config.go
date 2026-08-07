@@ -21,6 +21,8 @@ type Config struct {
 	TranscodeCachePath string
 	TranscodeWorkers   int
 
+	CoverArtDir string
+
 	S3Endpoint  string
 	S3Bucket    string
 	S3AccessKey string
@@ -72,6 +74,7 @@ func Load() (Config, error) {
 		LibraryPath:        getEnvOrDefault("SONORA_LIBRARY_PATH", "/music"),
 		IncomingPath:       getEnvOrDefault("SONORA_INCOMING_PATH", "/music/incoming"),
 		TranscodeCachePath: getEnvOrDefault("SONORA_TRANSCODE_CACHE_PATH", "/cache"),
+		CoverArtDir:        getEnvOrDefault("SONORA_COVER_ART_DIR", "/cache/covers"),
 		S3Endpoint:         getEnvOrDefault("SONORA_S3_ENDPOINT", ""),
 		S3Bucket:           getEnvOrDefault("SONORA_S3_BUCKET", ""),
 		S3AccessKey:        getEnvOrDefault("SONORA_S3_ACCESS_KEY", ""),

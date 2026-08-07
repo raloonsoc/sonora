@@ -5,8 +5,10 @@ to be lightweight enough to run on a Raspberry Pi or a small VPS, speaks the
 **OpenSubsonic** protocol so you can use the mobile apps that already exist
 for it, and pairs with a custom terminal client as its main differentiator.
 
-> Status: early development. Not usable yet — this README describes the
-> target design.
+> Status: early development. The ingestion pipeline and the minimal
+> OpenSubsonic subset work end-to-end against a real Postgres-backed
+> server. Not usable with a real Subsonic client yet — authentication
+> isn't wired up.
 
 ## Why
 
@@ -57,25 +59,27 @@ logic.
 
 ### Done / working
 
+- PostgreSQL schema (tracks, albums, artists, users, playlists) with
+  `golang-migrate` migrations and `sqlc`-generated queries.
 - Filesystem watcher (`fsnotify`) with debounce to avoid processing
   half-copied files.
-- Ingestion pipeline: metadata extraction via `ffprobe`, normalization to
-  FLAC via `ffmpeg` (passthrough if the source is already FLAC).
+- Full ingestion pipeline, watcher to database with no manual steps:
+  metadata extraction (`ffprobe`), ReplayGain analysis (EBU R128 via
+  `ffmpeg loudnorm`), cover art extraction, artist/album dedup, insert.
+- Streaming handler: HTTP Range requests (`http.ServeContent` over an
+  `io.ReadSeeker`), FLAC passthrough.
+- OpenSubsonic minimal subset, all working against a real Postgres-backed
+  server: `ping`, `getArtists`, `getAlbum`, `getCoverArt`, `stream`,
+  `search3`.
 
 ### Planned
 
-- [ ] PostgreSQL schema (tracks, albums, artists, users, playlists, cover
-      art, lyrics, transcode cache).
-- [ ] Streaming handler: quality negotiation, HTTP Range requests
-      (`http.ServeContent` over an `io.ReadSeeker`), on-demand transcoding
-      with a worker pool, cache lookup before re-encoding.
+- [ ] Authentication: Subsonic token auth (`MD5(password + salt)`) gating
+      every OpenSubsonic endpoint; JWT auth for the native API.
+- [ ] On-demand transcoding (Opus/AAC) with a worker pool, cache lookup
+      before re-encoding.
 - [ ] Chromaprint/`fpcalc` fingerprinting for duplicate detection.
-- [ ] ReplayGain (EBU R128) computed at ingestion time.
-- [ ] OpenSubsonic layer, starting with the minimal subset: `ping`,
-      `getArtists`, `getAlbum`, `getCoverArt`, `stream`, `search3` — then
-      playlists and lyrics.
-- [ ] Cover art extraction (`ffmpeg -an -vcodec copy`) served via
-      `getCoverArt.view`.
+- [ ] Playlists, scrobbling.
 - [ ] Lyrics: `.lrc` parser producing OpenSubsonic `structuredLyrics`
       (millisecond timestamps), with optional fallback to the [LRCLIB]
       API when no local file exists.
