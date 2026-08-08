@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sonora
+      POSTGRES_PASSWORD: sonora
+      POSTGRES_DB: sonora
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonora"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sonora:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "4533:4533"
+    volumes:
+      - ${SONORA_LIBRARY_HOST_PATH:-./library}:/music
+      - cache:/cache
+
+volumes:
+  pgdata:
+  cache:

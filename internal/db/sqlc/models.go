@@ -55,9 +55,10 @@ type Track struct {
 }
 
 type User struct {
-	ID                pgtype.UUID        `json:"id"`
-	Username          string             `json:"username"`
-	PasswordEncrypted []byte             `json:"password_encrypted"`
-	IsAdmin           bool               `json:"is_admin"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ID                        pgtype.UUID        `json:"id"`
+	Username                  string             `json:"username"`
+	PasswordEncrypted         []byte             `json:"password_encrypted"`
+	IsAdmin                   bool               `json:"is_admin"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	PasswordSubsonicEncrypted []byte             `json:"password_subsonic_encrypted"`
 }

@@ -22,6 +22,13 @@ WHERE title ILIKE '%' || $1 || '%'
 ORDER BY title
 LIMIT $2;
 
+-- name: ListGenres :many
+SELECT genre, COUNT(*) AS song_count, COUNT(DISTINCT album_id) AS album_count
+FROM tracks
+WHERE genre != ''
+GROUP BY genre
+ORDER BY genre;
+
 -- name: CreateTrack :one
 INSERT INTO tracks (
     title, album_id, artist_id, genre, track_number, disc_number,

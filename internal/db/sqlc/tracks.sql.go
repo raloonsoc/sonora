@@ -141,6 +141,40 @@ func (q *Queries) GetTrackByPath(ctx context.Context, path string) (Track, error
 	return i, err
 }
 
+const listGenres = `-- name: ListGenres :many
+SELECT genre, COUNT(*) AS song_count, COUNT(DISTINCT album_id) AS album_count
+FROM tracks
+WHERE genre != ''
+GROUP BY genre
+ORDER BY genre
+`
+
+type ListGenresRow struct {
+	Genre      string `json:"genre"`
+	SongCount  int64  `json:"song_count"`
+	AlbumCount int64  `json:"album_count"`
+}
+
+func (q *Queries) ListGenres(ctx context.Context) ([]ListGenresRow, error) {
+	rows, err := q.db.Query(ctx, listGenres)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGenresRow
+	for rows.Next() {
+		var i ListGenresRow
+		if err := rows.Scan(&i.Genre, &i.SongCount, &i.AlbumCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTracksByAlbum = `-- name: ListTracksByAlbum :many
 SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels FROM tracks
 WHERE album_id = $1

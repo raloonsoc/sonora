@@ -11,8 +11,8 @@ SELECT * FROM users
 ORDER BY username;
 
 -- name: CreateUser :one
-INSERT INTO users (username, password_encrypted, is_admin)
-VALUES ($1, $2, $3)
+INSERT INTO users (username, password_encrypted, password_subsonic_encrypted, is_admin)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: DeleteUser :exec

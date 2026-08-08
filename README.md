@@ -5,10 +5,10 @@ to be lightweight enough to run on a Raspberry Pi or a small VPS, speaks the
 **OpenSubsonic** protocol so you can use the mobile apps that already exist
 for it, and pairs with a custom terminal client as its main differentiator.
 
-> Status: early development. The ingestion pipeline and the minimal
-> OpenSubsonic subset work end-to-end against a real Postgres-backed
-> server. Not usable with a real Subsonic client yet — authentication
-> isn't wired up.
+> Status: early development, but usable. The ingestion pipeline, streaming,
+> authentication, and a broad OpenSubsonic subset all work end-to-end —
+> verified against a real client (Feishin). Docker packaging (with
+> auto-migration on startup) is ready.
 
 ## Why
 
@@ -42,10 +42,11 @@ API (Go)
 ├── Native API — JWT auth, free-form design, used by the CLI client
 ├── OpenSubsonic layer — adapter/translator over the same domain models
 │   ├── auth: MD5(password + salt) via query params (fixed contract)
-│   ├── getArtists / getArtist / getAlbum / search3
+│   ├── getArtists / getArtist / getAlbum / getAlbumList2 / getGenres /
+│   │   search3
 │   ├── getCoverArt
 │   ├── getLyricsBySongId (OpenSubsonic, synced) + getLyrics (legacy)
-│   ├── getPlaylists / createPlaylist / scrobble
+│   ├── getPlaylists (read-only) / createPlaylist / scrobble
 │   └── stream — Range requests, FLAC passthrough or on-demand transcode
 └── Storage — originals on local disk, transcode cache on local disk or
     S3-compatible storage (R2 / MinIO)
@@ -68,24 +69,33 @@ logic.
   `ffmpeg loudnorm`), cover art extraction, artist/album dedup, insert.
 - Streaming handler: HTTP Range requests (`http.ServeContent` over an
   `io.ReadSeeker`), FLAC passthrough.
-- OpenSubsonic minimal subset, all working against a real Postgres-backed
-  server: `ping`, `getArtists`, `getAlbum`, `getCoverArt`, `stream`,
-  `search3`.
+- Authentication: bcrypt password storage for the future native API,
+  reversible AES-256-GCM storage + Subsonic token auth
+  (`MD5(password + salt)`) gating every OpenSubsonic endpoint, CLI
+  user provisioning (`sonora create-user`).
+- OpenSubsonic support, verified end-to-end against a real client
+  (Feishin): `ping`, `getArtists`, `getArtist`, `getAlbum`, `getAlbumList2`,
+  `getGenres`, `getCoverArt`, `stream`, `search3`, `getPlaylists`
+  (read-only), `getMusicFolders`, `getOpenSubsonicExtensions`, `getUser`,
+  `getLicense`. Responses support both XML (protocol default) and JSON
+  (`f=json`).
+- Docker packaging: multi-stage `Dockerfile` (Alpine, `ffmpeg`/`ffprobe`
+  bundled), `docker-compose.yml` with PostgreSQL + healthcheck, and
+  automatic schema migration on startup (no external `migrate` CLI
+  needed).
 
 ### Planned
 
-- [ ] Authentication: Subsonic token auth (`MD5(password + salt)`) gating
-      every OpenSubsonic endpoint; JWT auth for the native API.
 - [ ] On-demand transcoding (Opus/AAC) with a worker pool, cache lookup
       before re-encoding.
 - [ ] Chromaprint/`fpcalc` fingerprinting for duplicate detection.
-- [ ] Playlists, scrobbling.
+- [ ] Playlist write operations (create/update/delete), scrobbling.
 - [ ] Lyrics: `.lrc` parser producing OpenSubsonic `structuredLyrics`
       (millisecond timestamps), with optional fallback to the [LRCLIB]
       API when no local file exists.
-- [ ] Docker packaging: multi-stage `Dockerfile`, `docker-compose.yml`
-      with PostgreSQL, multi-arch builds (amd64/arm64), GitHub Actions CI,
-      image published to `ghcr.io`.
+- [ ] JWT auth for the native API (used by the future `sonora-cli` client).
+- [ ] Multi-arch builds (amd64/arm64), GitHub Actions CI, image published
+      to `ghcr.io`.
 
 ## Companion CLI
 
@@ -106,15 +116,16 @@ project.
 
 ## Getting started
 
-Not ready yet. Once the first runnable version lands, this section will
-cover:
-
 ```bash
+cd deploy
+cp .env.example .env   # edit values, especially SONORA_JWT_SECRET
 docker compose up -d
+docker compose exec sonora sonora create-user --username admin --password <password> --admin
 ```
 
-with configuration entirely via environment variables — no hardcoded
-config files.
+Configuration is entirely via environment variables — no hardcoded config
+files. Point your library at the `SONORA_LIBRARY_HOST_PATH` folder (or
+`deploy/library` by default) and Sonora will pick up files automatically.
 
 ## Tech stack
 

@@ -12,19 +12,25 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (username, password_encrypted, is_admin)
-VALUES ($1, $2, $3)
-RETURNING id, username, password_encrypted, is_admin, created_at
+INSERT INTO users (username, password_encrypted, password_subsonic_encrypted, is_admin)
+VALUES ($1, $2, $3, $4)
+RETURNING id, username, password_encrypted, is_admin, created_at, password_subsonic_encrypted
 `
 
 type CreateUserParams struct {
-	Username          string `json:"username"`
-	PasswordEncrypted []byte `json:"password_encrypted"`
-	IsAdmin           bool   `json:"is_admin"`
+	Username                  string `json:"username"`
+	PasswordEncrypted         []byte `json:"password_encrypted"`
+	PasswordSubsonicEncrypted []byte `json:"password_subsonic_encrypted"`
+	IsAdmin                   bool   `json:"is_admin"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Username, arg.PasswordEncrypted, arg.IsAdmin)
+	row := q.db.QueryRow(ctx, createUser,
+		arg.Username,
+		arg.PasswordEncrypted,
+		arg.PasswordSubsonicEncrypted,
+		arg.IsAdmin,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -32,6 +38,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PasswordEncrypted,
 		&i.IsAdmin,
 		&i.CreatedAt,
+		&i.PasswordSubsonicEncrypted,
 	)
 	return i, err
 }
@@ -47,7 +54,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, username, password_encrypted, is_admin, created_at FROM users
+SELECT id, username, password_encrypted, is_admin, created_at, password_subsonic_encrypted FROM users
 WHERE id = $1
 `
 
@@ -60,12 +67,13 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 		&i.PasswordEncrypted,
 		&i.IsAdmin,
 		&i.CreatedAt,
+		&i.PasswordSubsonicEncrypted,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, password_encrypted, is_admin, created_at FROM users
+SELECT id, username, password_encrypted, is_admin, created_at, password_subsonic_encrypted FROM users
 WHERE username = $1
 `
 
@@ -78,12 +86,13 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.PasswordEncrypted,
 		&i.IsAdmin,
 		&i.CreatedAt,
+		&i.PasswordSubsonicEncrypted,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, username, password_encrypted, is_admin, created_at FROM users
+SELECT id, username, password_encrypted, is_admin, created_at, password_subsonic_encrypted FROM users
 ORDER BY username
 `
 
@@ -102,6 +111,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.PasswordEncrypted,
 			&i.IsAdmin,
 			&i.CreatedAt,
+			&i.PasswordSubsonicEncrypted,
 		); err != nil {
 			return nil, err
 		}

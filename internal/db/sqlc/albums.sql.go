@@ -96,6 +96,44 @@ func (q *Queries) GetAlbumByTitleAndArtist(ctx context.Context, arg GetAlbumByTi
 	return i, err
 }
 
+const listAlbumsAlphabetical = `-- name: ListAlbumsAlphabetical :many
+SELECT id, title, artist_id, release_year, cover_art_path, created_at FROM albums
+ORDER BY title
+LIMIT $1 OFFSET $2
+`
+
+type ListAlbumsAlphabeticalParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListAlbumsAlphabetical(ctx context.Context, arg ListAlbumsAlphabeticalParams) ([]Album, error) {
+	rows, err := q.db.Query(ctx, listAlbumsAlphabetical, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Album
+	for rows.Next() {
+		var i Album
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.ArtistID,
+			&i.ReleaseYear,
+			&i.CoverArtPath,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAlbumsByArtist = `-- name: ListAlbumsByArtist :many
 SELECT id, title, artist_id, release_year, cover_art_path, created_at FROM albums
 WHERE artist_id = $1
@@ -104,6 +142,44 @@ ORDER BY release_year, title
 
 func (q *Queries) ListAlbumsByArtist(ctx context.Context, artistID pgtype.UUID) ([]Album, error) {
 	rows, err := q.db.Query(ctx, listAlbumsByArtist, artistID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Album
+	for rows.Next() {
+		var i Album
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.ArtistID,
+			&i.ReleaseYear,
+			&i.CoverArtPath,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAlbumsNewest = `-- name: ListAlbumsNewest :many
+SELECT id, title, artist_id, release_year, cover_art_path, created_at FROM albums
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListAlbumsNewestParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListAlbumsNewest(ctx context.Context, arg ListAlbumsNewestParams) ([]Album, error) {
+	rows, err := q.db.Query(ctx, listAlbumsNewest, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

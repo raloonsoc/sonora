@@ -17,6 +17,16 @@ WHERE title ILIKE '%' || $1 || '%'
 ORDER BY title
 LIMIT $2;
 
+-- name: ListAlbumsAlphabetical :many
+SELECT * FROM albums
+ORDER BY title
+LIMIT $1 OFFSET $2;
+
+-- name: ListAlbumsNewest :many
+SELECT * FROM albums
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
 -- name: UpdateAlbumCoverArt :exec
 UPDATE albums
 SET cover_art_path = $2
