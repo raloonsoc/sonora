@@ -30,6 +30,12 @@ type artistEntry struct {
 	AlbumCount int    `json:"albumCount" xml:"albumCount,attr"`
 }
 
+// Song types
+type songSubsonicResponse struct {
+	baseResponse
+	Song songEntry `json:"song" xml:"song"`
+}
+
 // Album types
 type albumSubsonicResponse struct {
 	baseResponse
@@ -212,6 +218,56 @@ func (h *Handler) GetAlbumHandler(w http.ResponseWriter, r *http.Request) {
 	encodeResponse(w, r, albumSubsonicResponse{
 		baseResponse: newBaseResponse(),
 		Album:        albumComplete,
+	})
+}
+
+func (h *Handler) GetSongHandler(w http.ResponseWriter, r *http.Request) {
+	idParam := r.URL.Query().Get("id")
+	if idParam == "" {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var trackId pgtype.UUID
+	if err := trackId.Scan(idParam); err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	track, err := h.Queries.GetTrack(r.Context(), trackId)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	album, err := h.Queries.GetAlbum(r.Context(), track.AlbumID)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	artist, err := h.Queries.GetArtist(r.Context(), track.ArtistID)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	encodeResponse(w, r, songSubsonicResponse{
+		baseResponse: newBaseResponse(),
+		Song: songEntry{
+			ID:          track.ID.String(),
+			Title:       track.Title,
+			Album:       album.Title,
+			AlbumID:     album.ID.String(),
+			Artist:      artist.Name,
+			ArtistID:    artist.ID.String(),
+			CoverArt:    album.ID.String(),
+			Track:       int(track.TrackNumber),
+			Duration:    int(track.DurationSeconds),
+			Suffix:      track.Format,
+			ContentType: contentTypeForFormat(track.Format),
+			IsDir:       false,
+			Type:        "music",
+		},
 	})
 }
 

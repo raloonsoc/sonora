@@ -1,0 +1,3 @@
+ALTER TABLE tracks
+    ADD COLUMN play_count INT NOT NULL DEFAULT 0,
+    ADD COLUMN last_played_at TIMESTAMPTZ;

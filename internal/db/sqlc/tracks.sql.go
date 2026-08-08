@@ -22,7 +22,7 @@ VALUES (
     $7, $8, $9, $10,
     $11, $12, $13
 )
-RETURNING id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels
+RETURNING id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at
 `
 
 type CreateTrackParams struct {
@@ -73,6 +73,8 @@ func (q *Queries) CreateTrack(ctx context.Context, arg CreateTrackParams) (Track
 		&i.BitDepth,
 		&i.SampleRate,
 		&i.Channels,
+		&i.PlayCount,
+		&i.LastPlayedAt,
 	)
 	return i, err
 }
@@ -88,7 +90,7 @@ func (q *Queries) DeleteTrack(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getTrack = `-- name: GetTrack :one
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at FROM tracks
 WHERE id = $1
 `
 
@@ -110,12 +112,14 @@ func (q *Queries) GetTrack(ctx context.Context, id pgtype.UUID) (Track, error) {
 		&i.BitDepth,
 		&i.SampleRate,
 		&i.Channels,
+		&i.PlayCount,
+		&i.LastPlayedAt,
 	)
 	return i, err
 }
 
 const getTrackByPath = `-- name: GetTrackByPath :one
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at FROM tracks
 WHERE path = $1
 `
 
@@ -137,6 +141,8 @@ func (q *Queries) GetTrackByPath(ctx context.Context, path string) (Track, error
 		&i.BitDepth,
 		&i.SampleRate,
 		&i.Channels,
+		&i.PlayCount,
+		&i.LastPlayedAt,
 	)
 	return i, err
 }
@@ -176,7 +182,7 @@ func (q *Queries) ListGenres(ctx context.Context) ([]ListGenresRow, error) {
 }
 
 const listTracksByAlbum = `-- name: ListTracksByAlbum :many
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at FROM tracks
 WHERE album_id = $1
 ORDER BY disc_number, track_number
 `
@@ -205,6 +211,8 @@ func (q *Queries) ListTracksByAlbum(ctx context.Context, albumID pgtype.UUID) ([
 			&i.BitDepth,
 			&i.SampleRate,
 			&i.Channels,
+			&i.PlayCount,
+			&i.LastPlayedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -217,7 +225,7 @@ func (q *Queries) ListTracksByAlbum(ctx context.Context, albumID pgtype.UUID) ([
 }
 
 const listTracksByArtist = `-- name: ListTracksByArtist :many
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at FROM tracks
 WHERE artist_id = $1
 ORDER BY title
 `
@@ -246,6 +254,8 @@ func (q *Queries) ListTracksByArtist(ctx context.Context, artistID pgtype.UUID) 
 			&i.BitDepth,
 			&i.SampleRate,
 			&i.Channels,
+			&i.PlayCount,
+			&i.LastPlayedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -257,8 +267,25 @@ func (q *Queries) ListTracksByArtist(ctx context.Context, artistID pgtype.UUID) 
 	return items, nil
 }
 
+const scrobbleTrack = `-- name: ScrobbleTrack :exec
+UPDATE tracks
+SET play_count = play_count + 1,
+    last_played_at = COALESCE($1, NOW())
+WHERE id = $2
+`
+
+type ScrobbleTrackParams struct {
+	PlayedAt pgtype.Timestamptz `json:"played_at"`
+	ID       pgtype.UUID        `json:"id"`
+}
+
+func (q *Queries) ScrobbleTrack(ctx context.Context, arg ScrobbleTrackParams) error {
+	_, err := q.db.Exec(ctx, scrobbleTrack, arg.PlayedAt, arg.ID)
+	return err
+}
+
 const searchTracks = `-- name: SearchTracks :many
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at FROM tracks
 WHERE title ILIKE '%' || $1 || '%'
 ORDER BY title
 LIMIT $2
@@ -293,6 +320,8 @@ func (q *Queries) SearchTracks(ctx context.Context, arg SearchTracksParams) ([]T
 			&i.BitDepth,
 			&i.SampleRate,
 			&i.Channels,
+			&i.PlayCount,
+			&i.LastPlayedAt,
 		); err != nil {
 			return nil, err
 		}

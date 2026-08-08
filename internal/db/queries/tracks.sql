@@ -45,3 +45,9 @@ RETURNING *;
 -- name: DeleteTrack :exec
 DELETE FROM tracks
 WHERE id = $1;
+
+-- name: ScrobbleTrack :exec
+UPDATE tracks
+SET play_count = play_count + 1,
+    last_played_at = COALESCE(sqlc.narg(played_at), NOW())
+WHERE id = sqlc.arg(id);

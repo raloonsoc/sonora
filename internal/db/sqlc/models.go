@@ -38,20 +38,22 @@ type PlaylistTrack struct {
 }
 
 type Track struct {
-	ID                pgtype.UUID   `json:"id"`
-	Title             string        `json:"title"`
-	AlbumID           pgtype.UUID   `json:"album_id"`
-	ArtistID          pgtype.UUID   `json:"artist_id"`
-	Genre             string        `json:"genre"`
-	TrackNumber       int32         `json:"track_number"`
-	DiscNumber        int32         `json:"disc_number"`
-	DurationSeconds   int32         `json:"duration_seconds"`
-	Path              string        `json:"path"`
-	Format            string        `json:"format"`
-	ReplayGainTrackDb pgtype.Float8 `json:"replay_gain_track_db"`
-	BitDepth          int32         `json:"bit_depth"`
-	SampleRate        int32         `json:"sample_rate"`
-	Channels          int32         `json:"channels"`
+	ID                pgtype.UUID        `json:"id"`
+	Title             string             `json:"title"`
+	AlbumID           pgtype.UUID        `json:"album_id"`
+	ArtistID          pgtype.UUID        `json:"artist_id"`
+	Genre             string             `json:"genre"`
+	TrackNumber       int32              `json:"track_number"`
+	DiscNumber        int32              `json:"disc_number"`
+	DurationSeconds   int32              `json:"duration_seconds"`
+	Path              string             `json:"path"`
+	Format            string             `json:"format"`
+	ReplayGainTrackDb pgtype.Float8      `json:"replay_gain_track_db"`
+	BitDepth          int32              `json:"bit_depth"`
+	SampleRate        int32              `json:"sample_rate"`
+	Channels          int32              `json:"channels"`
+	PlayCount         int32              `json:"play_count"`
+	LastPlayedAt      pgtype.Timestamptz `json:"last_played_at"`
 }
 
 type User struct {

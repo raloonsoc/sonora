@@ -43,6 +43,7 @@ type Querier interface {
 	ListTracksByArtist(ctx context.Context, artistID pgtype.UUID) ([]Track, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RemovePlaylistTrack(ctx context.Context, arg RemovePlaylistTrackParams) error
+	ScrobbleTrack(ctx context.Context, arg ScrobbleTrackParams) error
 	SearchAlbums(ctx context.Context, arg SearchAlbumsParams) ([]Album, error)
 	SearchArtists(ctx context.Context, arg SearchArtistsParams) ([]Artist, error)
 	SearchTracks(ctx context.Context, arg SearchTracksParams) ([]Track, error)

@@ -22,6 +22,7 @@ func NewRouter(subsonicHandler *Handler, streamHandler *streaming.Handler) *http
 	register("/rest/getArtists", subsonicHandler.GetArtistsHandler)
 	register("/rest/getArtist", subsonicHandler.GetArtistHandler)
 	register("/rest/getAlbum", subsonicHandler.GetAlbumHandler)
+	register("/rest/getSong", subsonicHandler.GetSongHandler)
 	register("/rest/getCoverArt", subsonicHandler.GetCoverArtHandler)
 	register("/rest/stream", streamHandler.StreamHandler)
 	register("/rest/search3", subsonicHandler.GetSearchHandler)
@@ -32,6 +33,7 @@ func NewRouter(subsonicHandler *Handler, streamHandler *streaming.Handler) *http
 	register("/rest/getPlaylists", subsonicHandler.GetPlaylistsHandler)
 	register("/rest/getMusicFolders", subsonicHandler.GetMusicFoldersHandler)
 	register("/rest/getOpenSubsonicExtensions", subsonicHandler.GetOpenSubsonicExtensionsHandler)
+	register("/rest/scrobble", subsonicHandler.ScrobbleHandler)
 
 	return mux
 }
