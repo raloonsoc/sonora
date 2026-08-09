@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/raloonsoc/sonora/internal/db/sqlc"
@@ -27,11 +28,24 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		return fmt.Errorf("ingest: %s missing artist tag", path)
 	}
 
-	artist, err := queries.GetArtistByName(ctx, artistName)
+	trackArtist, err := queries.GetArtistByName(ctx, artistName)
 	if err != nil {
-		artist, err = queries.CreateArtist(ctx, artistName)
+		trackArtist, err = queries.CreateArtist(ctx, artistName)
 		if err != nil {
 			return fmt.Errorf("ingest: creating artist %q: %w", artistName, err)
+		}
+	}
+
+	albumArtistName := output.Format.Tags["album_artist"]
+	if albumArtistName == "" {
+		albumArtistName = artistName
+	}
+
+	albumArtist, err := queries.GetArtistByName(ctx, albumArtistName)
+	if err != nil {
+		albumArtist, err = queries.CreateArtist(ctx, albumArtistName)
+		if err != nil {
+			return fmt.Errorf("ingest: creating album artist %q: %w", albumArtistName, err)
 		}
 	}
 
@@ -50,12 +64,12 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 
 	album, err := queries.GetAlbumByTitleAndArtist(ctx, sqlc.GetAlbumByTitleAndArtistParams{
 		Title:    albumTitle,
-		ArtistID: artist.ID,
+		ArtistID: albumArtist.ID,
 	})
 	if err != nil {
 		album, err = queries.CreateAlbum(ctx, sqlc.CreateAlbumParams{
 			Title:        albumTitle,
-			ArtistID:     artist.ID,
+			ArtistID:     albumArtist.ID,
 			ReleaseYear:  releaseYear,
 			CoverArtPath: "",
 		})
@@ -76,7 +90,24 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 
 	coverPath := filepath.Join(coverArtDir, album.ID.String()+".jpg")
 	if err := extractCoverArt(path, coverPath); err != nil {
-		slog.Error("ingest: extracting cover art failed", "path", path, "error", err)
+		fallbackCover, err := FetchCoverArtURL(ctx, albumArtistName, albumTitle)
+		if err != nil {
+			slog.Error("ingest: getting fallback cover art failed", "error", err)
+		}
+		if fallbackCover == "" {
+			slog.Error("ingest: fallback cover art not found")
+		}
+		replacedStr := strings.Replace(fallbackCover, "100x100bb.jpg", "600x600bb.jpg", 1)
+		if replacedStr != "" {
+			if err := DownloadCoverArt(ctx, replacedStr, coverPath); err != nil {
+				slog.Error("ingest: downloading fallback cover art failed", "error", err)
+			} else {
+				queries.UpdateAlbumCoverArt(ctx, sqlc.UpdateAlbumCoverArtParams{
+					ID:           album.ID,
+					CoverArtPath: coverPath,
+				})
+			}
+		}
 	} else {
 		queries.UpdateAlbumCoverArt(ctx, sqlc.UpdateAlbumCoverArtParams{
 			ID:           album.ID,
@@ -99,7 +130,7 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 	_, err = queries.CreateTrack(ctx, sqlc.CreateTrackParams{
 		Title:             track.Title,
 		AlbumID:           album.ID,
-		ArtistID:          artist.ID,
+		ArtistID:          trackArtist.ID,
 		Genre:             track.Genre,
 		TrackNumber:       int32(track.TrackNumber),
 		DiscNumber:        int32(track.DiscNumber),

@@ -6,9 +6,9 @@ to be lightweight enough to run on a Raspberry Pi or a small VPS, speaks the
 for it, and pairs with a custom terminal client as its main differentiator.
 
 > Status: early development, but usable. The ingestion pipeline, streaming,
-> authentication, and a broad OpenSubsonic subset all work end-to-end —
-> verified against a real client (Feishin). Docker packaging (with
-> auto-migration on startup) is ready.
+> authentication, lyrics, and a broad OpenSubsonic subset all work
+> end-to-end — verified against a real client (Feishin). Docker packaging
+> (with auto-migration on startup) is ready.
 
 ## Why
 
@@ -31,11 +31,12 @@ lock you into their own app. Sonora aims for the opposite:
 ## Architecture
 
 ```
-Ingestion (fsnotify watcher, 5s debounce)
+Ingestion (polling watcher, configurable interval)
     → ffprobe (metadata) + chromaprint (fingerprint, dedup)
     → normalize to FLAC when needed
     → ReplayGain (EBU R128)
-    → cover art extraction
+    → cover art extraction, with an iTunes Search API fallback when the
+      embedded picture can't be read locally
     → PostgreSQL (metadata)
 
 API (Go)
@@ -43,10 +44,12 @@ API (Go)
 ├── OpenSubsonic layer — adapter/translator over the same domain models
 │   ├── auth: MD5(password + salt) via query params (fixed contract)
 │   ├── getArtists / getArtist / getAlbum / getAlbumList2 / getGenres /
-│   │   search3
+│   │   getSong / search3
 │   ├── getCoverArt
-│   ├── getLyricsBySongId (OpenSubsonic, synced) + getLyrics (legacy)
-│   ├── getPlaylists (read-only) / createPlaylist / scrobble
+│   ├── getLyricsBySongId (OpenSubsonic, synced) + getLyrics (legacy),
+│   │   with a local .lrc parser and an LRCLIB fallback (exact match,
+│   │   then fuzzy search)
+│   ├── getPlaylists (read-only) / scrobble
 │   └── stream — Range requests, FLAC passthrough or on-demand transcode
 └── Storage — originals on local disk, transcode cache on local disk or
     S3-compatible storage (R2 / MinIO)
@@ -62,23 +65,32 @@ logic.
 
 - PostgreSQL schema (tracks, albums, artists, users, playlists) with
   `golang-migrate` migrations and `sqlc`-generated queries.
-- Filesystem watcher (`fsnotify`) with debounce to avoid processing
-  half-copied files.
+- Polling-based library watcher (configurable interval, default 30s):
+  scans the library and ingests any file not yet in the database. Works
+  identically whether Sonora runs natively or inside Docker with a bind
+  mount — unlike `fsnotify`, which doesn't reliably see host-side changes
+  through a Docker Desktop/OrbStack bind mount.
 - Full ingestion pipeline, watcher to database with no manual steps:
-  metadata extraction (`ffprobe`), ReplayGain analysis (EBU R128 via
-  `ffmpeg loudnorm`), cover art extraction, artist/album dedup, insert.
+  metadata extraction (`ffprobe`, with case-insensitive tag lookup),
+  ReplayGain analysis (EBU R128 via `ffmpeg loudnorm`), cover art
+  extraction (with an iTunes Search API fallback), artist/album dedup,
+  insert. Albums are grouped by the `album_artist` tag (falling back to
+  `artist`) so a featured-artist track doesn't fork off a duplicate album.
 - Streaming handler: HTTP Range requests (`http.ServeContent` over an
   `io.ReadSeeker`), FLAC passthrough.
 - Authentication: bcrypt password storage for the future native API,
   reversible AES-256-GCM storage + Subsonic token auth
   (`MD5(password + salt)`) gating every OpenSubsonic endpoint, CLI
   user provisioning (`sonora create-user`).
+- Lyrics: `.lrc` parser producing OpenSubsonic `structuredLyrics`
+  (millisecond timestamps), falling back to the [LRCLIB] API (exact
+  match, then fuzzy search) when no local file exists.
 - OpenSubsonic support, verified end-to-end against a real client
   (Feishin): `ping`, `getArtists`, `getArtist`, `getAlbum`, `getAlbumList2`,
-  `getGenres`, `getCoverArt`, `stream`, `search3`, `getPlaylists`
-  (read-only), `getMusicFolders`, `getOpenSubsonicExtensions`, `getUser`,
-  `getLicense`. Responses support both XML (protocol default) and JSON
-  (`f=json`).
+  `getGenres`, `getSong`, `getCoverArt`, `stream`, `scrobble`, `search3`,
+  `getLyricsBySongId`, `getLyrics`, `getPlaylists` (read-only),
+  `getMusicFolders`, `getOpenSubsonicExtensions`, `getUser`, `getLicense`.
+  Responses support both XML (protocol default) and JSON (`f=json`).
 - Docker packaging: multi-stage `Dockerfile` (Alpine, `ffmpeg`/`ffprobe`
   bundled), `docker-compose.yml` with PostgreSQL + healthcheck, and
   automatic schema migration on startup (no external `migrate` CLI
@@ -87,12 +99,12 @@ logic.
 ### Planned
 
 - [ ] On-demand transcoding (Opus/AAC) with a worker pool, cache lookup
-      before re-encoding.
+      before re-encoding — needed for clients/browsers that can't decode
+      high-resolution FLAC (96kHz+) via streaming passthrough.
 - [ ] Chromaprint/`fpcalc` fingerprinting for duplicate detection.
-- [ ] Playlist write operations (create/update/delete), scrobbling.
-- [ ] Lyrics: `.lrc` parser producing OpenSubsonic `structuredLyrics`
-      (millisecond timestamps), with optional fallback to the [LRCLIB]
-      API when no local file exists.
+- [ ] Playlist write operations (create/update/delete).
+- [ ] Multi-artist track splitting ("A & B" tagged tracks) into separate
+      linked artists.
 - [ ] JWT auth for the native API (used by the future `sonora-cli` client).
 - [ ] Multi-arch builds (amd64/arm64), GitHub Actions CI, image published
       to `ghcr.io`.
