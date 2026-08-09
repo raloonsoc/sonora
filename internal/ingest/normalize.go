@@ -36,6 +36,8 @@ func trackFromProbe(path string, output ffprobeOutput) (domain.Track, error) {
 	trackNumber, _ := strconv.Atoi(trackNumberStr)
 	discNumberStr, _, _ := strings.Cut(output.Format.Tags["disc"], "/")
 	discNumber, _ := strconv.Atoi(discNumberStr)
+	bitRate, _ := strconv.Atoi(output.Format.BitRate)
+	sizeBytes, _ := strconv.ParseInt(output.Format.Size, 10, 64)
 	track := domain.Track{
 		DurationSeconds: durationSeconds,
 		Title:           title,
@@ -44,6 +46,8 @@ func trackFromProbe(path string, output ffprobeOutput) (domain.Track, error) {
 		TrackNumber:     trackNumber,
 		DiscNumber:      discNumber,
 		Format:          audioStream.CodecName,
+		BitRate:         bitRate,
+		SizeBytes:       sizeBytes,
 	}
 	return track, nil
 }

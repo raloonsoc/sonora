@@ -16,7 +16,7 @@ type Config struct {
 	LibraryPath  string
 	IncomingPath string
 
-	IngestDebounceSeconds int
+	IngestPollIntervalSeconds int
 
 	TranscodeCachePath string
 	TranscodeWorkers   int
@@ -93,7 +93,7 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
-	cfg.IngestDebounceSeconds, err = getEnvOrDefaultInt("SONORA_INGEST_DEBOUNCE_SECONDS", 5)
+	cfg.IngestPollIntervalSeconds, err = getEnvOrDefaultInt("SONORA_INGEST_POLL_INTERVAL_SECONDS", 30)
 	if err != nil {
 		return Config{}, err
 	}

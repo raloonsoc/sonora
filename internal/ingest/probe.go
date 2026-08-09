@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 type ffprobeFormat struct {
@@ -26,6 +27,13 @@ type ffprobeOutput struct {
 	Streams []ffprobeStream `json:"streams"`
 }
 
+func normalizeTagKeys(tags map[string]string) map[string]string {
+	normalized := make(map[string]string, len(tags))
+	for k, v := range tags {
+		normalized[strings.ToLower(k)] = v
+	}
+	return normalized
+}
 func probeFile(path string) (ffprobeOutput, error) {
 	cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", path)
 	output, err := cmd.Output()
@@ -38,6 +46,8 @@ func probeFile(path string) (ffprobeOutput, error) {
 	if err := json.Unmarshal(output, &result); err != nil {
 		return ffprobeOutput{}, fmt.Errorf("ingest: parsing ffprobe output: %w", err)
 	}
+
+	result.Format.Tags = normalizeTagKeys(result.Format.Tags)
 
 	return result, nil
 }

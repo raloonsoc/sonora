@@ -1,41 +1,54 @@
 package ingest
 
 import (
+	"context"
 	"fmt"
-	"log/slog"
+	"io/fs"
+	"path/filepath"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
+	"github.com/raloonsoc/sonora/internal/db/sqlc"
 )
 
-func WatchLibrary(path string, debounce time.Duration, processed chan<- string) error {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("ingest: creating watcher: %w", err)
-	}
-	defer watcher.Close()
+var audioExtensions = map[string]bool{
+	".flac": true,
+	".mp3":  true,
+	".m4a":  true,
+	".aac":  true,
+	".opus": true,
+	".ogg":  true,
+	".wav":  true,
+}
 
-	if err := watcher.Add(path); err != nil {
-		return fmt.Errorf("ingest: watching %s: %w", path, err)
-	}
+func WatchLibrary(path string, interval time.Duration, queries *sqlc.Queries, processed chan<- string) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
-	timer := time.NewTimer(debounce)
-	timer.Stop()
-	var pendingPath string
-
-	for {
-		select {
-		case event := <-watcher.Events:
-			if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
-				pendingPath = event.Name
-				timer.Stop()
-				timer.Reset(debounce)
-			}
-		case <-timer.C:
-			slog.Info("info: file ready to process", "path", pendingPath)
-			processed <- pendingPath
-		case err := <-watcher.Errors:
-			slog.Error("ingest: watcher error", "error", err)
+	for range ticker.C {
+		paths, err := queries.ListTrackPaths(context.Background())
+		if err != nil {
+			return fmt.Errorf("ingest: listing track paths %s: %w", path, err)
 		}
+		pathRoute := make(map[string]bool, len(paths))
+		for _, p := range paths {
+			pathRoute[p] = true
+		}
+		filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil //ignore folders
+			}
+			if pathRoute[p] {
+				return nil //exists in db
+			}
+			if !audioExtensions[filepath.Ext(p)] {
+				return nil //not valid filetype
+			}
+			processed <- p
+			return nil
+		})
 	}
+	return nil
 }

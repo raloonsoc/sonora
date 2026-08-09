@@ -2,6 +2,18 @@
 SELECT * FROM albums
 WHERE id = $1;
 
+-- name: GetAlbumWithStats :one
+SELECT
+    albums.*,
+    COALESCE(SUM(tracks.duration_seconds), 0)::int AS duration_seconds,
+    COALESCE(SUM(tracks.play_count), 0)::int AS play_count,
+    COUNT(tracks.id)::int AS song_count,
+    COALESCE(MODE() WITHIN GROUP (ORDER BY tracks.genre), '')::text AS genre
+FROM albums
+LEFT JOIN tracks ON tracks.album_id = albums.id
+WHERE albums.id = $1
+GROUP BY albums.id;
+
 -- name: GetAlbumByTitleAndArtist :one
 SELECT * FROM albums
 WHERE title = $1 AND artist_id = $2;
@@ -18,13 +30,29 @@ ORDER BY title
 LIMIT $2;
 
 -- name: ListAlbumsAlphabetical :many
-SELECT * FROM albums
-ORDER BY title
+SELECT
+    albums.*,
+    COALESCE(SUM(tracks.duration_seconds), 0)::int AS duration_seconds,
+    COALESCE(SUM(tracks.play_count), 0)::int AS play_count,
+    COUNT(tracks.id)::int AS song_count,
+    COALESCE(MODE() WITHIN GROUP (ORDER BY tracks.genre), '')::text AS genre
+FROM albums
+LEFT JOIN tracks ON tracks.album_id = albums.id
+GROUP BY albums.id
+ORDER BY albums.title
 LIMIT $1 OFFSET $2;
 
 -- name: ListAlbumsNewest :many
-SELECT * FROM albums
-ORDER BY created_at DESC
+SELECT
+    albums.*,
+    COALESCE(SUM(tracks.duration_seconds), 0)::int AS duration_seconds,
+    COALESCE(SUM(tracks.play_count), 0)::int AS play_count,
+    COUNT(tracks.id)::int AS song_count,
+    COALESCE(MODE() WITHIN GROUP (ORDER BY tracks.genre), '')::text AS genre
+FROM albums
+LEFT JOIN tracks ON tracks.album_id = albums.id
+GROUP BY albums.id
+ORDER BY albums.created_at DESC
 LIMIT $1 OFFSET $2;
 
 -- name: UpdateAlbumCoverArt :exec

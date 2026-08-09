@@ -96,9 +96,61 @@ func (q *Queries) GetAlbumByTitleAndArtist(ctx context.Context, arg GetAlbumByTi
 	return i, err
 }
 
+const getAlbumWithStats = `-- name: GetAlbumWithStats :one
+SELECT
+    albums.id, albums.title, albums.artist_id, albums.release_year, albums.cover_art_path, albums.created_at,
+    COALESCE(SUM(tracks.duration_seconds), 0)::int AS duration_seconds,
+    COALESCE(SUM(tracks.play_count), 0)::int AS play_count,
+    COUNT(tracks.id)::int AS song_count,
+    COALESCE(MODE() WITHIN GROUP (ORDER BY tracks.genre), '')::text AS genre
+FROM albums
+LEFT JOIN tracks ON tracks.album_id = albums.id
+WHERE albums.id = $1
+GROUP BY albums.id
+`
+
+type GetAlbumWithStatsRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	ArtistID        pgtype.UUID        `json:"artist_id"`
+	ReleaseYear     pgtype.Int4        `json:"release_year"`
+	CoverArtPath    string             `json:"cover_art_path"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	DurationSeconds int32              `json:"duration_seconds"`
+	PlayCount       int32              `json:"play_count"`
+	SongCount       int32              `json:"song_count"`
+	Genre           string             `json:"genre"`
+}
+
+func (q *Queries) GetAlbumWithStats(ctx context.Context, id pgtype.UUID) (GetAlbumWithStatsRow, error) {
+	row := q.db.QueryRow(ctx, getAlbumWithStats, id)
+	var i GetAlbumWithStatsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.ArtistID,
+		&i.ReleaseYear,
+		&i.CoverArtPath,
+		&i.CreatedAt,
+		&i.DurationSeconds,
+		&i.PlayCount,
+		&i.SongCount,
+		&i.Genre,
+	)
+	return i, err
+}
+
 const listAlbumsAlphabetical = `-- name: ListAlbumsAlphabetical :many
-SELECT id, title, artist_id, release_year, cover_art_path, created_at FROM albums
-ORDER BY title
+SELECT
+    albums.id, albums.title, albums.artist_id, albums.release_year, albums.cover_art_path, albums.created_at,
+    COALESCE(SUM(tracks.duration_seconds), 0)::int AS duration_seconds,
+    COALESCE(SUM(tracks.play_count), 0)::int AS play_count,
+    COUNT(tracks.id)::int AS song_count,
+    COALESCE(MODE() WITHIN GROUP (ORDER BY tracks.genre), '')::text AS genre
+FROM albums
+LEFT JOIN tracks ON tracks.album_id = albums.id
+GROUP BY albums.id
+ORDER BY albums.title
 LIMIT $1 OFFSET $2
 `
 
@@ -107,15 +159,28 @@ type ListAlbumsAlphabeticalParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) ListAlbumsAlphabetical(ctx context.Context, arg ListAlbumsAlphabeticalParams) ([]Album, error) {
+type ListAlbumsAlphabeticalRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	ArtistID        pgtype.UUID        `json:"artist_id"`
+	ReleaseYear     pgtype.Int4        `json:"release_year"`
+	CoverArtPath    string             `json:"cover_art_path"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	DurationSeconds int32              `json:"duration_seconds"`
+	PlayCount       int32              `json:"play_count"`
+	SongCount       int32              `json:"song_count"`
+	Genre           string             `json:"genre"`
+}
+
+func (q *Queries) ListAlbumsAlphabetical(ctx context.Context, arg ListAlbumsAlphabeticalParams) ([]ListAlbumsAlphabeticalRow, error) {
 	rows, err := q.db.Query(ctx, listAlbumsAlphabetical, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Album
+	var items []ListAlbumsAlphabeticalRow
 	for rows.Next() {
-		var i Album
+		var i ListAlbumsAlphabeticalRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
@@ -123,6 +188,10 @@ func (q *Queries) ListAlbumsAlphabetical(ctx context.Context, arg ListAlbumsAlph
 			&i.ReleaseYear,
 			&i.CoverArtPath,
 			&i.CreatedAt,
+			&i.DurationSeconds,
+			&i.PlayCount,
+			&i.SongCount,
+			&i.Genre,
 		); err != nil {
 			return nil, err
 		}
@@ -168,8 +237,16 @@ func (q *Queries) ListAlbumsByArtist(ctx context.Context, artistID pgtype.UUID) 
 }
 
 const listAlbumsNewest = `-- name: ListAlbumsNewest :many
-SELECT id, title, artist_id, release_year, cover_art_path, created_at FROM albums
-ORDER BY created_at DESC
+SELECT
+    albums.id, albums.title, albums.artist_id, albums.release_year, albums.cover_art_path, albums.created_at,
+    COALESCE(SUM(tracks.duration_seconds), 0)::int AS duration_seconds,
+    COALESCE(SUM(tracks.play_count), 0)::int AS play_count,
+    COUNT(tracks.id)::int AS song_count,
+    COALESCE(MODE() WITHIN GROUP (ORDER BY tracks.genre), '')::text AS genre
+FROM albums
+LEFT JOIN tracks ON tracks.album_id = albums.id
+GROUP BY albums.id
+ORDER BY albums.created_at DESC
 LIMIT $1 OFFSET $2
 `
 
@@ -178,15 +255,28 @@ type ListAlbumsNewestParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) ListAlbumsNewest(ctx context.Context, arg ListAlbumsNewestParams) ([]Album, error) {
+type ListAlbumsNewestRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	Title           string             `json:"title"`
+	ArtistID        pgtype.UUID        `json:"artist_id"`
+	ReleaseYear     pgtype.Int4        `json:"release_year"`
+	CoverArtPath    string             `json:"cover_art_path"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	DurationSeconds int32              `json:"duration_seconds"`
+	PlayCount       int32              `json:"play_count"`
+	SongCount       int32              `json:"song_count"`
+	Genre           string             `json:"genre"`
+}
+
+func (q *Queries) ListAlbumsNewest(ctx context.Context, arg ListAlbumsNewestParams) ([]ListAlbumsNewestRow, error) {
 	rows, err := q.db.Query(ctx, listAlbumsNewest, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Album
+	var items []ListAlbumsNewestRow
 	for rows.Next() {
-		var i Album
+		var i ListAlbumsNewestRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
@@ -194,6 +284,10 @@ func (q *Queries) ListAlbumsNewest(ctx context.Context, arg ListAlbumsNewestPara
 			&i.ReleaseYear,
 			&i.CoverArtPath,
 			&i.CreatedAt,
+			&i.DurationSeconds,
+			&i.PlayCount,
+			&i.SongCount,
+			&i.Genre,
 		); err != nil {
 			return nil, err
 		}

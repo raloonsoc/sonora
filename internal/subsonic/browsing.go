@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/raloonsoc/sonora/internal/db/sqlc"
@@ -44,27 +45,48 @@ type albumSubsonicResponse struct {
 
 type albumWithSongs struct {
 	ID        string      `json:"id" xml:"id,attr"`
+	Parent    string      `json:"parent" xml:"parent,attr"`
+	Album     string      `json:"album" xml:"album,attr"`
+	Title     string      `json:"title" xml:"title,attr"`
 	Name      string      `json:"name" xml:"name,attr"`
-	Artist    string      `json:"artist" xml:"artist,attr"`
-	ArtistID  string      `json:"artistId" xml:"artistId,attr"`
+	IsDir     bool        `json:"isDir" xml:"isDir,attr"`
+	CoverArt  string      `json:"coverArt" xml:"coverArt,attr"`
 	SongCount int         `json:"songCount" xml:"songCount,attr"`
+	Created   time.Time   `json:"created" xml:"created,attr"`
+	Duration  int         `json:"duration" xml:"duration,attr"`
+	PlayCount int         `json:"playCount" xml:"playCount,attr"`
+	ArtistID  string      `json:"artistId" xml:"artistId,attr"`
+	Artist    string      `json:"artist" xml:"artist,attr"`
+	Year      int         `json:"year" xml:"year,attr"`
+	Genre     string      `json:"genre" xml:"genre,attr"`
 	Song      []songEntry `json:"song" xml:"song"`
 }
 
 type songEntry struct {
-	ID          string `json:"id" xml:"id,attr"`
-	Title       string `json:"title" xml:"title,attr"`
-	Album       string `json:"album" xml:"album,attr"`
-	AlbumID     string `json:"albumId" xml:"albumId,attr"`
-	Artist      string `json:"artist" xml:"artist,attr"`
-	ArtistID    string `json:"artistId" xml:"artistId,attr"`
-	CoverArt    string `json:"coverArt" xml:"coverArt,attr"`
-	Track       int    `json:"track" xml:"track,attr"`
-	Duration    int    `json:"duration" xml:"duration,attr"`
-	Suffix      string `json:"suffix" xml:"suffix,attr"`
-	ContentType string `json:"contentType" xml:"contentType,attr"`
-	IsDir       bool   `json:"isDir" xml:"isDir,attr"`
-	Type        string `json:"type" xml:"type,attr"`
+	ID           string `json:"id" xml:"id,attr"`
+	Parent       string `json:"parent" xml:"parent,attr"`
+	Title        string `json:"title" xml:"title,attr"`
+	IsDir        bool   `json:"isDir" xml:"isDir,attr"`
+	IsVideo      bool   `json:"isVideo" xml:"isVideo,attr"`
+	Type         string `json:"type" xml:"type,attr"`
+	AlbumID      string `json:"albumId" xml:"albumId,attr"`
+	Album        string `json:"album" xml:"album,attr"`
+	ArtistID     string `json:"artistId" xml:"artistId,attr"`
+	Artist       string `json:"artist" xml:"artist,attr"`
+	CoverArt     string `json:"coverArt" xml:"coverArt,attr"`
+	Duration     int    `json:"duration" xml:"duration,attr"`
+	BitRate      int    `json:"bitRate" xml:"bitRate,attr"`
+	BitDepth     int    `json:"bitDepth" xml:"bitDepth,attr"`
+	SamplingRate int    `json:"samplingRate" xml:"samplingRate,attr"`
+	ChannelCount int    `json:"channelCount" xml:"channelCount,attr"`
+	Track        int    `json:"track" xml:"track,attr"`
+	Year         int    `json:"year" xml:"year,attr"`
+	Genre        string `json:"genre" xml:"genre,attr"`
+	Size         int    `json:"size" xml:"size,attr"`
+	DiscNumber   int    `json:"discNumber" xml:"discNumber,attr"`
+	Suffix       string `json:"suffix" xml:"suffix,attr"`
+	ContentType  string `json:"contentType" xml:"contentType,attr"`
+	Path         string `json:"path" xml:"path,attr"`
 }
 
 // contentTypeForFormat maps a track's audio format (as stored by ffprobe,
@@ -90,10 +112,13 @@ func contentTypeForFormat(format string) string {
 }
 
 type albumEntry struct {
-	ID       string `json:"id" xml:"id,attr"`
-	Name     string `json:"name" xml:"name,attr"`
+	Album    string `json:"album" xml:"album,attr"`
 	Artist   string `json:"artist" xml:"artist,attr"`
 	ArtistID string `json:"artistId" xml:"artistId,attr"`
+	CoverArt string `json:"coverArt" xml:"coverArt,attr"`
+	Duration int    `json:"duration" xml:"duration,attr"`
+	ID       string `json:"id" xml:"id,attr"`
+	Name     string `json:"name" xml:"name,attr"`
 }
 
 // ArtistWithAlbums types
@@ -168,7 +193,7 @@ func (h *Handler) GetAlbumHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	album, err := h.Queries.GetAlbum(r.Context(), albumId)
+	album, err := h.Queries.GetAlbumWithStats(r.Context(), albumId)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -186,32 +211,56 @@ func (h *Handler) GetAlbumHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	year := 0
+	if album.ReleaseYear.Valid {
+		year = int(album.ReleaseYear.Int32)
+	}
+
 	var songs []songEntry
 
 	for _, s := range tracks {
 		songs = append(songs, songEntry{
-			ID:          s.ID.String(),
-			Title:       s.Title,
-			Album:       album.Title,
-			AlbumID:     album.ID.String(),
-			Artist:      artist.Name,
-			ArtistID:    artist.ID.String(),
-			CoverArt:    album.ID.String(),
-			Track:       int(s.TrackNumber),
-			Duration:    int(s.DurationSeconds),
-			Suffix:      s.Format,
-			ContentType: contentTypeForFormat(s.Format),
-			IsDir:       false,
-			Type:        "music",
+			ID:           s.ID.String(),
+			Title:        s.Title,
+			Album:        album.Title,
+			AlbumID:      album.ID.String(),
+			Artist:       artist.Name,
+			ArtistID:     artist.ID.String(),
+			CoverArt:     album.ID.String(),
+			Track:        int(s.TrackNumber),
+			Duration:     int(s.DurationSeconds),
+			Suffix:       s.Format,
+			ContentType:  contentTypeForFormat(s.Format),
+			IsDir:        false,
+			Type:         "music",
+			Genre:        s.Genre,
+			DiscNumber:   int(s.DiscNumber),
+			BitDepth:     int(s.BitDepth),
+			SamplingRate: int(s.SampleRate),
+			ChannelCount: int(s.Channels),
+			Path:         s.Path,
+			Year:         year,
+			BitRate:      int(s.BitRate),
+			Size:         int(s.SizeBytes),
 		})
 	}
 
 	albumComplete := albumWithSongs{
 		ID:        album.ID.String(),
+		Parent:    artist.ID.String(),
+		Album:     album.Title,
+		Title:     album.Title,
 		Name:      album.Title,
+		IsDir:     true,
+		CoverArt:  album.ID.String(),
+		SongCount: len(songs),
+		Created:   album.CreatedAt.Time,
+		Duration:  int(album.DurationSeconds),
+		PlayCount: int(album.PlayCount),
 		Artist:    artist.Name,
 		ArtistID:  artist.ID.String(),
-		SongCount: len(songs),
+		Year:      year,
+		Genre:     album.Genre,
 		Song:      songs,
 	}
 

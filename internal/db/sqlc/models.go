@@ -54,6 +54,8 @@ type Track struct {
 	Channels          int32              `json:"channels"`
 	PlayCount         int32              `json:"play_count"`
 	LastPlayedAt      pgtype.Timestamptz `json:"last_played_at"`
+	BitRate           int32              `json:"bit_rate"`
+	SizeBytes         int64              `json:"size_bytes"`
 }
 
 type User struct {

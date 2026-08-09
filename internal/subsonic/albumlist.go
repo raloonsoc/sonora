@@ -3,7 +3,9 @@ package subsonic
 import (
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/raloonsoc/sonora/internal/db/sqlc"
 )
 
@@ -17,13 +19,31 @@ type albumListEntry struct {
 }
 
 type albumListItem struct {
-	ID        string `json:"id" xml:"id,attr"`
-	Album     string `json:"album" xml:"album,attr"`
-	Title     string `json:"title" xml:"title,attr"`
-	ArtistID  string `json:"artistId" xml:"artistId,attr"`
-	Artist    string `json:"artist" xml:"artist,attr"`
-	CoverArt  string `json:"coverArt" xml:"coverArt,attr"`
-	SongCount int    `json:"songCount" xml:"songCount,attr"`
+	ID        string    `json:"id" xml:"id,attr"`
+	Album     string    `json:"album" xml:"album,attr"`
+	Title     string    `json:"title" xml:"title,attr"`
+	Name      string    `json:"name" xml:"name,attr"`
+	CoverArt  string    `json:"coverArt" xml:"coverArt,attr"`
+	SongCount int       `json:"songCount" xml:"songCount,attr"`
+	Created   time.Time `json:"created" xml:"created,attr"`
+	Duration  int       `json:"duration" xml:"duration,attr"`
+	PlayCount int       `json:"playCount" xml:"playCount,attr"`
+	ArtistID  string    `json:"artistId" xml:"artistId,attr"`
+	Artist    string    `json:"artist" xml:"artist,attr"`
+	Year      int       `json:"year" xml:"year,attr"`
+	Genre     string    `json:"genre" xml:"genre"`
+}
+
+type albumRow struct {
+	ID              pgtype.UUID
+	Title           string
+	ArtistID        pgtype.UUID
+	ReleaseYear     pgtype.Int4
+	CreatedAt       pgtype.Timestamptz
+	DurationSeconds int32
+	PlayCount       int32
+	SongCount       int32
+	Genre           string
 }
 
 type genresSubsonicResponse struct {
@@ -57,12 +77,40 @@ func (h *Handler) GetAlbumListHandler(w http.ResponseWriter, r *http.Request) {
 
 	listType := r.URL.Query().Get("type")
 
-	var albums []sqlc.Album
+	var albums []albumRow
 	var err error
 	if listType == "newest" {
-		albums, err = h.Queries.ListAlbumsNewest(r.Context(), sqlc.ListAlbumsNewestParams{Limit: size, Offset: offset})
+		rows, e := h.Queries.ListAlbumsNewest(r.Context(), sqlc.ListAlbumsNewestParams{Limit: size, Offset: offset})
+		err = e
+		for _, row := range rows {
+			albums = append(albums, albumRow{
+				ID:              row.ID,
+				Title:           row.Title,
+				ArtistID:        row.ArtistID,
+				ReleaseYear:     row.ReleaseYear,
+				CreatedAt:       row.CreatedAt,
+				DurationSeconds: row.DurationSeconds,
+				PlayCount:       row.PlayCount,
+				SongCount:       row.SongCount,
+				Genre:           row.Genre,
+			})
+		}
 	} else {
-		albums, err = h.Queries.ListAlbumsAlphabetical(r.Context(), sqlc.ListAlbumsAlphabeticalParams{Limit: size, Offset: offset})
+		rows, e := h.Queries.ListAlbumsAlphabetical(r.Context(), sqlc.ListAlbumsAlphabeticalParams{Limit: size, Offset: offset})
+		err = e
+		for _, row := range rows {
+			albums = append(albums, albumRow{
+				ID:              row.ID,
+				Title:           row.Title,
+				ArtistID:        row.ArtistID,
+				ReleaseYear:     row.ReleaseYear,
+				CreatedAt:       row.CreatedAt,
+				DurationSeconds: row.DurationSeconds,
+				PlayCount:       row.PlayCount,
+				SongCount:       row.SongCount,
+				Genre:           row.Genre,
+			})
+		}
 	}
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -82,13 +130,24 @@ func (h *Handler) GetAlbumListHandler(w http.ResponseWriter, r *http.Request) {
 			artistNames[artistID] = artistName
 		}
 
+		year := 0
+		if a.ReleaseYear.Valid {
+			year = int(a.ReleaseYear.Int32)
+		}
 		items = append(items, albumListItem{
-			ID:       a.ID.String(),
-			Album:    a.Title,
-			Title:    a.Title,
-			ArtistID: artistID,
-			Artist:   artistName,
-			CoverArt: a.ID.String(),
+			ID:        a.ID.String(),
+			Album:     a.Title,
+			Title:     a.Title,
+			Name:      a.Title,
+			CoverArt:  a.ID.String(),
+			ArtistID:  artistID,
+			Artist:    artistName,
+			Created:   a.CreatedAt.Time,
+			SongCount: int(a.SongCount),
+			Genre:     a.Genre,
+			Year:      year,
+			PlayCount: int(a.PlayCount),
+			Duration:  int(a.DurationSeconds),
 		})
 	}
 

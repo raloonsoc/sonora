@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strconv"
 
@@ -39,6 +40,14 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		return fmt.Errorf("ingest: %s missing album tag", path)
 	}
 
+	dateTag := output.Format.Tags["date"]
+	var releaseYear pgtype.Int4
+	if len(dateTag) >= 4 {
+		if year, err := strconv.Atoi(dateTag[:4]); err == nil {
+			releaseYear = pgtype.Int4{Int32: int32(year), Valid: true}
+		}
+	}
+
 	album, err := queries.GetAlbumByTitleAndArtist(ctx, sqlc.GetAlbumByTitleAndArtistParams{
 		Title:    albumTitle,
 		ArtistID: artist.ID,
@@ -47,7 +56,7 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		album, err = queries.CreateAlbum(ctx, sqlc.CreateAlbumParams{
 			Title:        albumTitle,
 			ArtistID:     artist.ID,
-			ReleaseYear:  pgtype.Int4{},
+			ReleaseYear:  releaseYear,
 			CoverArtPath: "",
 		})
 		if err != nil {
@@ -66,7 +75,9 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 	}
 
 	coverPath := filepath.Join(coverArtDir, album.ID.String()+".jpg")
-	if err := extractCoverArt(path, coverPath); err == nil {
+	if err := extractCoverArt(path, coverPath); err != nil {
+		slog.Error("ingest: extracting cover art failed", "path", path, "error", err)
+	} else {
 		queries.UpdateAlbumCoverArt(ctx, sqlc.UpdateAlbumCoverArtParams{
 			ID:           album.ID,
 			CoverArtPath: coverPath,
@@ -99,6 +110,8 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		BitDepth:          bitDepth,
 		SampleRate:        sampleRate,
 		Channels:          channels,
+		BitRate:           int32(track.BitRate),
+		SizeBytes:         track.SizeBytes,
 	})
 
 	if err != nil {

@@ -12,7 +12,7 @@ RUN CGO_ENABLED=0 go build -o /out/sonora ./cmd/sonora
 # --- Final stage ---
 FROM alpine:3.20
 
-RUN apk add --no-cache ffmpeg ca-certificates
+RUN apk add --no-cache ffmpeg ca-certificates && mkdir -p /cache/covers
 
 COPY --from=build /out/sonora /usr/local/bin/sonora
 
