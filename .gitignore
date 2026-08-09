@@ -28,6 +28,9 @@ go.work.sum
 .env.*
 !.env.example
 
+# Local docker-compose overrides (personal host paths)
+docker-compose.override.yml
+
 # Local music library / media (never commit user content)
 /library/
 /incoming/

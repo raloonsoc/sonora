@@ -82,8 +82,10 @@ func (h *Handler) GetMusicFoldersHandler(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) GetOpenSubsonicExtensionsHandler(w http.ResponseWriter, r *http.Request) {
 	encodeResponse(w, r, extensionsSubsonicResponse{
-		baseResponse:           newBaseResponse(),
-		OpenSubsonicExtensions: []extensionItem{},
+		baseResponse: newBaseResponse(),
+		OpenSubsonicExtensions: []extensionItem{
+			{Name: "songLyrics", Versions: []int{1}},
+		},
 	})
 }
 

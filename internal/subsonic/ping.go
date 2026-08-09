@@ -7,7 +7,8 @@ import (
 )
 
 type Handler struct {
-	Queries *sqlc.Queries
+	Queries              *sqlc.Queries
+	LyricsLRCLIBFallback bool
 }
 
 func (h *Handler) PingHandler(w http.ResponseWriter, r *http.Request) {
