@@ -9,7 +9,8 @@ import (
 )
 
 type Handler struct {
-	Queries *sqlc.Queries
+	Queries           *sqlc.Queries
+	TranscodeCacheDir string
 }
 
 func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +32,23 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, err := os.Open(track.Path)
+	sourcePath := track.Path
+	if track.SampleRate > 48000 {
+		cachePath := CachePath(h.TranscodeCacheDir, track.ID.String())
+		mu := lockForPath(cachePath)
+		mu.Lock()
+		if !CacheExists(cachePath) {
+			if err := TranscodeToOpus(track.Path, cachePath); err != nil {
+				mu.Unlock()
+				http.Error(w, "transcode failed", http.StatusInternalServerError)
+				return
+			}
+		}
+		mu.Unlock()
+		sourcePath = cachePath
+	}
+
+	file, err := os.Open(sourcePath)
 	if err != nil {
 		http.Error(w, "file not found", http.StatusNotFound)
 		return
