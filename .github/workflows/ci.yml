@@ -20,9 +20,9 @@ jobs:
           cache: true
       - name: go vet
         run: go vet ./...
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: v2.12.2
 
   test:
     runs-on: ubuntu-latest
@@ -47,7 +47,10 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: install migrate CLI
-        run: go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+        # -tags postgres: the migrate CLI registers DB drivers via build tags,
+        # so without it the binary builds fine but fails at runtime with
+        # "unknown driver postgres (forgotten import?)".
+        run: go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
       - name: run migrations
         run: migrate -database "$DATABASE_URL" -path internal/db/migrations up
         env:
