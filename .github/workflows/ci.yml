@@ -46,6 +46,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: install media tooling
+        # The ingest pipeline shells out to these; without them the ingest
+        # tests fail with "executable file not found in $PATH". The runner
+        # image does not ship them.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libchromaprint-tools
+          ffprobe -version | head -1
+          fpcalc -version
       - name: install migrate CLI
         # -tags postgres: the migrate CLI registers DB drivers via build tags,
         # so without it the binary builds fine but fails at runtime with
