@@ -94,8 +94,9 @@ logic.
   (Feishin): `ping`, `getArtists`, `getArtist`, `getAlbum`, `getAlbumList2`,
   `getGenres`, `getSong`, `getCoverArt`, `stream`, `scrobble`, `search3`,
   `getLyricsBySongId`, `getLyrics`, `getPlaylists`, `getPlaylist`,
-  `createPlaylist`, `updatePlaylist`, `deletePlaylist`,
-  `getMusicFolders`, `getOpenSubsonicExtensions`, `getUser`, `getLicense`.
+  `createPlaylist`, `updatePlaylist`, `deletePlaylist`, `star`, `unstar`,
+  `getStarred2`, `getMusicFolders`, `getOpenSubsonicExtensions`, `getUser`,
+  `getLicense`.
   Responses support both XML (protocol default) and JSON (`f=json`).
 - Docker packaging: multi-stage `Dockerfile` (Alpine, `ffmpeg`/`ffprobe`
   bundled), `docker-compose.yml` with PostgreSQL + healthcheck, and

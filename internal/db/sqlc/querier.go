@@ -44,6 +44,9 @@ type Querier interface {
 	ListGenres(ctx context.Context) ([]ListGenresRow, error)
 	ListPlaylistTracks(ctx context.Context, playlistID pgtype.UUID) ([]PlaylistTrack, error)
 	ListPlaylistsByOwner(ctx context.Context, ownerID pgtype.UUID) ([]ListPlaylistsByOwnerRow, error)
+	ListStarredAlbums(ctx context.Context, userID pgtype.UUID) ([]ListStarredAlbumsRow, error)
+	ListStarredArtists(ctx context.Context, userID pgtype.UUID) ([]ListStarredArtistsRow, error)
+	ListStarredTracks(ctx context.Context, userID pgtype.UUID) ([]ListStarredTracksRow, error)
 	ListTrackPaths(ctx context.Context) ([]string, error)
 	ListTracksByAlbum(ctx context.Context, albumID pgtype.UUID) ([]Track, error)
 	ListTracksByArtist(ctx context.Context, artistID pgtype.UUID) ([]Track, error)
@@ -56,6 +59,8 @@ type Querier interface {
 	SearchArtists(ctx context.Context, arg SearchArtistsParams) ([]Artist, error)
 	SearchTracks(ctx context.Context, arg SearchTracksParams) ([]Track, error)
 	ShiftPlaylistTracksAfterPosition(ctx context.Context, arg ShiftPlaylistTracksAfterPositionParams) error
+	StarItem(ctx context.Context, arg StarItemParams) error
+	UnstarItem(ctx context.Context, arg UnstarItemParams) error
 	UpdateAlbumCoverArt(ctx context.Context, arg UpdateAlbumCoverArtParams) error
 	UpdatePlaylist(ctx context.Context, arg UpdatePlaylistParams) (Playlist, error)
 }

@@ -40,6 +40,9 @@ func NewRouter(subsonicHandler *Handler, streamHandler *streaming.Handler) *http
 	register("/rest/scrobble", subsonicHandler.ScrobbleHandler)
 	register("/rest/getLyricsBySongId", subsonicHandler.LyricsHandler)
 	register("/rest/getLyrics", subsonicHandler.LegacyLyricsHandler)
+	register("/rest/star", subsonicHandler.StarHandler)
+	register("/rest/unstar", subsonicHandler.UnstarHandler)
+	register("/rest/getStarred2", subsonicHandler.GetStarred2Handler)
 
 	return mux
 }

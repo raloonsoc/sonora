@@ -26,9 +26,10 @@ type artistsIndex struct {
 }
 
 type artistEntry struct {
-	ID         string `json:"id" xml:"id,attr"`
-	Name       string `json:"name" xml:"name,attr"`
-	AlbumCount int    `json:"albumCount" xml:"albumCount,attr"`
+	ID         string    `json:"id" xml:"id,attr"`
+	Name       string    `json:"name" xml:"name,attr"`
+	AlbumCount int       `json:"albumCount" xml:"albumCount,attr"`
+	Starred    time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 // Song types
@@ -89,6 +90,7 @@ type songEntry struct {
 	Path          string         `json:"path" xml:"path,attr"`
 	Artists       []artistID3Ref `json:"artists" xml:"artists"`
 	DisplayArtist string         `json:"displayArtist" xml:"displayArtist,attr"`
+	Starred       time.Time      `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 type artistID3Ref struct {
@@ -119,13 +121,14 @@ func contentTypeForFormat(format string) string {
 }
 
 type albumEntry struct {
-	Album    string `json:"album" xml:"album,attr"`
-	Artist   string `json:"artist" xml:"artist,attr"`
-	ArtistID string `json:"artistId" xml:"artistId,attr"`
-	CoverArt string `json:"coverArt" xml:"coverArt,attr"`
-	Duration int    `json:"duration" xml:"duration,attr"`
-	ID       string `json:"id" xml:"id,attr"`
-	Name     string `json:"name" xml:"name,attr"`
+	Album    string    `json:"album" xml:"album,attr"`
+	Artist   string    `json:"artist" xml:"artist,attr"`
+	ArtistID string    `json:"artistId" xml:"artistId,attr"`
+	CoverArt string    `json:"coverArt" xml:"coverArt,attr"`
+	Duration int       `json:"duration" xml:"duration,attr"`
+	ID       string    `json:"id" xml:"id,attr"`
+	Name     string    `json:"name" xml:"name,attr"`
+	Starred  time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 // ArtistWithAlbums types

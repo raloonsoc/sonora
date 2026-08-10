@@ -37,6 +37,13 @@ type PlaylistTrack struct {
 	Position   int32       `json:"position"`
 }
 
+type StarredItem struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	ItemType  string             `json:"item_type"`
+	ItemID    pgtype.UUID        `json:"item_id"`
+	StarredAt pgtype.Timestamptz `json:"starred_at"`
+}
+
 type Track struct {
 	ID                pgtype.UUID        `json:"id"`
 	Title             string             `json:"title"`
