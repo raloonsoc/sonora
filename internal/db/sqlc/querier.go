@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	AddPlaylistTrack(ctx context.Context, arg AddPlaylistTrackParams) (PlaylistTrack, error)
 	ClearPlaylistTracks(ctx context.Context, playlistID pgtype.UUID) error
+	CountPlaylistTracks(ctx context.Context, playlistID pgtype.UUID) (int64, error)
 	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (Album, error)
 	CreateArtist(ctx context.Context, name string) (Artist, error)
 	CreatePlaylist(ctx context.Context, arg CreatePlaylistParams) (Playlist, error)
@@ -48,10 +49,12 @@ type Querier interface {
 	ListTracksByArtistIDIncludingFeatured(ctx context.Context, artistID pgtype.UUID) ([]Track, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RemovePlaylistTrack(ctx context.Context, arg RemovePlaylistTrackParams) error
+	RemovePlaylistTrackAtPosition(ctx context.Context, arg RemovePlaylistTrackAtPositionParams) error
 	ScrobbleTrack(ctx context.Context, arg ScrobbleTrackParams) error
 	SearchAlbums(ctx context.Context, arg SearchAlbumsParams) ([]Album, error)
 	SearchArtists(ctx context.Context, arg SearchArtistsParams) ([]Artist, error)
 	SearchTracks(ctx context.Context, arg SearchTracksParams) ([]Track, error)
+	ShiftPlaylistTracksAfterPosition(ctx context.Context, arg ShiftPlaylistTracksAfterPositionParams) error
 	UpdateAlbumCoverArt(ctx context.Context, arg UpdateAlbumCoverArtParams) error
 	UpdatePlaylist(ctx context.Context, arg UpdatePlaylistParams) (Playlist, error)
 }

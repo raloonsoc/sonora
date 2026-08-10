@@ -88,7 +88,8 @@ logic.
 - OpenSubsonic support, verified end-to-end against a real client
   (Feishin): `ping`, `getArtists`, `getArtist`, `getAlbum`, `getAlbumList2`,
   `getGenres`, `getSong`, `getCoverArt`, `stream`, `scrobble`, `search3`,
-  `getLyricsBySongId`, `getLyrics`, `getPlaylists` (read-only),
+  `getLyricsBySongId`, `getLyrics`, `getPlaylists`, `getPlaylist`,
+  `createPlaylist`, `updatePlaylist`, `deletePlaylist`,
   `getMusicFolders`, `getOpenSubsonicExtensions`, `getUser`, `getLicense`.
   Responses support both XML (protocol default) and JSON (`f=json`).
 - Docker packaging: multi-stage `Dockerfile` (Alpine, `ffmpeg`/`ffprobe`
@@ -98,13 +99,7 @@ logic.
 
 ### Planned
 
-- [ ] On-demand transcoding (Opus/AAC) with a worker pool, cache lookup
-      before re-encoding — needed for clients/browsers that can't decode
-      high-resolution FLAC (96kHz+) via streaming passthrough.
 - [ ] Chromaprint/`fpcalc` fingerprinting for duplicate detection.
-- [ ] Playlist write operations (create/update/delete).
-- [ ] Multi-artist track splitting ("A & B" tagged tracks) into separate
-      linked artists.
 - [ ] JWT auth for the native API (used by the future `sonora-cli` client).
 - [ ] Multi-arch builds (amd64/arm64), GitHub Actions CI, image published
       to `ghcr.io`.

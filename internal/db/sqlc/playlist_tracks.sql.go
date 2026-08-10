@@ -40,6 +40,18 @@ func (q *Queries) ClearPlaylistTracks(ctx context.Context, playlistID pgtype.UUI
 	return err
 }
 
+const countPlaylistTracks = `-- name: CountPlaylistTracks :one
+SELECT COUNT(*) FROM playlist_tracks
+WHERE playlist_id = $1
+`
+
+func (q *Queries) CountPlaylistTracks(ctx context.Context, playlistID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPlaylistTracks, playlistID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listPlaylistTracks = `-- name: ListPlaylistTracks :many
 SELECT playlist_id, track_id, position FROM playlist_tracks
 WHERE playlist_id = $1
@@ -78,5 +90,36 @@ type RemovePlaylistTrackParams struct {
 
 func (q *Queries) RemovePlaylistTrack(ctx context.Context, arg RemovePlaylistTrackParams) error {
 	_, err := q.db.Exec(ctx, removePlaylistTrack, arg.PlaylistID, arg.TrackID)
+	return err
+}
+
+const removePlaylistTrackAtPosition = `-- name: RemovePlaylistTrackAtPosition :exec
+DELETE FROM playlist_tracks
+WHERE playlist_id = $1 AND position = $2
+`
+
+type RemovePlaylistTrackAtPositionParams struct {
+	PlaylistID pgtype.UUID `json:"playlist_id"`
+	Position   int32       `json:"position"`
+}
+
+func (q *Queries) RemovePlaylistTrackAtPosition(ctx context.Context, arg RemovePlaylistTrackAtPositionParams) error {
+	_, err := q.db.Exec(ctx, removePlaylistTrackAtPosition, arg.PlaylistID, arg.Position)
+	return err
+}
+
+const shiftPlaylistTracksAfterPosition = `-- name: ShiftPlaylistTracksAfterPosition :exec
+UPDATE playlist_tracks
+SET position = position - 1
+WHERE playlist_id = $1 AND position > $2
+`
+
+type ShiftPlaylistTracksAfterPositionParams struct {
+	PlaylistID pgtype.UUID `json:"playlist_id"`
+	Position   int32       `json:"position"`
+}
+
+func (q *Queries) ShiftPlaylistTracksAfterPosition(ctx context.Context, arg ShiftPlaylistTracksAfterPositionParams) error {
+	_, err := q.db.Exec(ctx, shiftPlaylistTracksAfterPosition, arg.PlaylistID, arg.Position)
 	return err
 }

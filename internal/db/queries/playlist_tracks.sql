@@ -12,6 +12,19 @@ RETURNING *;
 DELETE FROM playlist_tracks
 WHERE playlist_id = $1 AND track_id = $2;
 
+-- name: RemovePlaylistTrackAtPosition :exec
+DELETE FROM playlist_tracks
+WHERE playlist_id = $1 AND position = $2;
+
+-- name: ShiftPlaylistTracksAfterPosition :exec
+UPDATE playlist_tracks
+SET position = position - 1
+WHERE playlist_id = $1 AND position > $2;
+
+-- name: CountPlaylistTracks :one
+SELECT COUNT(*) FROM playlist_tracks
+WHERE playlist_id = $1;
+
 -- name: ClearPlaylistTracks :exec
 DELETE FROM playlist_tracks
 WHERE playlist_id = $1;
