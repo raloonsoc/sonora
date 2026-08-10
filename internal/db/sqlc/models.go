@@ -58,6 +58,12 @@ type Track struct {
 	SizeBytes         int64              `json:"size_bytes"`
 }
 
+type TrackArtist struct {
+	TrackID  pgtype.UUID `json:"track_id"`
+	ArtistID pgtype.UUID `json:"artist_id"`
+	Position int32       `json:"position"`
+}
+
 type User struct {
 	ID                        pgtype.UUID        `json:"id"`
 	Username                  string             `json:"username"`

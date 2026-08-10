@@ -17,6 +17,7 @@ type Querier interface {
 	CreateArtist(ctx context.Context, name string) (Artist, error)
 	CreatePlaylist(ctx context.Context, arg CreatePlaylistParams) (Playlist, error)
 	CreateTrack(ctx context.Context, arg CreateTrackParams) (Track, error)
+	CreateTrackArtist(ctx context.Context, arg CreateTrackArtistParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAlbum(ctx context.Context, id pgtype.UUID) error
 	DeleteArtist(ctx context.Context, id pgtype.UUID) error
@@ -37,12 +38,14 @@ type Querier interface {
 	ListAlbumsByArtist(ctx context.Context, artistID pgtype.UUID) ([]Album, error)
 	ListAlbumsNewest(ctx context.Context, arg ListAlbumsNewestParams) ([]ListAlbumsNewestRow, error)
 	ListArtists(ctx context.Context) ([]Artist, error)
+	ListArtistsByTrack(ctx context.Context, trackID pgtype.UUID) ([]Artist, error)
 	ListGenres(ctx context.Context) ([]ListGenresRow, error)
 	ListPlaylistTracks(ctx context.Context, playlistID pgtype.UUID) ([]PlaylistTrack, error)
 	ListPlaylistsByOwner(ctx context.Context, ownerID pgtype.UUID) ([]Playlist, error)
 	ListTrackPaths(ctx context.Context) ([]string, error)
 	ListTracksByAlbum(ctx context.Context, albumID pgtype.UUID) ([]Track, error)
 	ListTracksByArtist(ctx context.Context, artistID pgtype.UUID) ([]Track, error)
+	ListTracksByArtistIDIncludingFeatured(ctx context.Context, artistID pgtype.UUID) ([]Track, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RemovePlaylistTrack(ctx context.Context, arg RemovePlaylistTrackParams) error
 	ScrobbleTrack(ctx context.Context, arg ScrobbleTrackParams) error

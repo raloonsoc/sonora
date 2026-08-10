@@ -28,12 +28,18 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		return fmt.Errorf("ingest: %s missing artist tag", path)
 	}
 
-	trackArtist, err := queries.GetArtistByName(ctx, artistName)
-	if err != nil {
-		trackArtist, err = queries.CreateArtist(ctx, artistName)
+	artistNames := SplitArtistNames(artistName)
+
+	var trackArtists []sqlc.Artist
+	for _, name := range artistNames {
+		trackArtist, err := queries.GetArtistByName(ctx, name)
 		if err != nil {
-			return fmt.Errorf("ingest: creating artist %q: %w", artistName, err)
+			trackArtist, err = queries.CreateArtist(ctx, name)
+			if err != nil {
+				return fmt.Errorf("ingest: creating artist %q: %w", name, err)
+			}
 		}
+		trackArtists = append(trackArtists, trackArtist)
 	}
 
 	albumArtistName := output.Format.Tags["album_artist"]
@@ -127,10 +133,10 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		}
 	}
 
-	_, err = queries.CreateTrack(ctx, sqlc.CreateTrackParams{
+	createdTrack, err := queries.CreateTrack(ctx, sqlc.CreateTrackParams{
 		Title:             track.Title,
 		AlbumID:           album.ID,
-		ArtistID:          trackArtist.ID,
+		ArtistID:          trackArtists[0].ID,
 		Genre:             track.Genre,
 		TrackNumber:       int32(track.TrackNumber),
 		DiscNumber:        int32(track.DiscNumber),
@@ -148,5 +154,16 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 	if err != nil {
 		return fmt.Errorf("ingest: creating track %s: %w", path, err)
 	}
+
+	for i, a := range trackArtists {
+		if err := queries.CreateTrackArtist(ctx, sqlc.CreateTrackArtistParams{
+			TrackID:  createdTrack.ID,
+			ArtistID: a.ID,
+			Position: int32(i),
+		}); err != nil {
+			return fmt.Errorf("ingest: linking artist %q to track %s: %w", a.Name, path, err)
+		}
+	}
+
 	return nil
 }

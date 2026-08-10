@@ -7,12 +7,14 @@ SELECT * FROM artists
 WHERE name = $1;
 
 -- name: ListArtists :many
-SELECT * FROM artists
+SELECT DISTINCT artists.* FROM artists
+JOIN track_artists ON track_artists.artist_id = artists.id
 ORDER BY name;
 
 -- name: SearchArtists :many
-SELECT * FROM artists
-WHERE name ILIKE '%' || $1 || '%'
+SELECT DISTINCT artists.* FROM artists
+JOIN track_artists ON track_artists.artist_id = artists.id
+WHERE artists.name ILIKE '%' || $1 || '%'
 ORDER BY name
 LIMIT $2;
 

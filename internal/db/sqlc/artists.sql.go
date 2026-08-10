@@ -59,7 +59,8 @@ func (q *Queries) GetArtistByName(ctx context.Context, name string) (Artist, err
 }
 
 const listArtists = `-- name: ListArtists :many
-SELECT id, name FROM artists
+SELECT DISTINCT artists.id, artists.name FROM artists
+JOIN track_artists ON track_artists.artist_id = artists.id
 ORDER BY name
 `
 
@@ -84,8 +85,9 @@ func (q *Queries) ListArtists(ctx context.Context) ([]Artist, error) {
 }
 
 const searchArtists = `-- name: SearchArtists :many
-SELECT id, name FROM artists
-WHERE name ILIKE '%' || $1 || '%'
+SELECT DISTINCT artists.id, artists.name FROM artists
+JOIN track_artists ON track_artists.artist_id = artists.id
+WHERE artists.name ILIKE '%' || $1 || '%'
 ORDER BY name
 LIMIT $2
 `
