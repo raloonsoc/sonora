@@ -132,6 +132,12 @@ func (h *Handler) GetPlaylistHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		artistRefs, displayArtist := artistRefsAndDisplay(linkedArtists)
+
+		year := 0
+		if album.ReleaseYear.Valid {
+			year = int(album.ReleaseYear.Int32)
+		}
+
 		songs = append(songs, songEntry{
 			ID:            track.ID.String(),
 			Title:         track.Title,
@@ -146,6 +152,15 @@ func (h *Handler) GetPlaylistHandler(w http.ResponseWriter, r *http.Request) {
 			ContentType:   contentTypeForFormat(track.Format),
 			IsDir:         false,
 			Type:          "music",
+			Genre:         track.Genre,
+			DiscNumber:    int(track.DiscNumber),
+			BitDepth:      int(track.BitDepth),
+			SamplingRate:  int(track.SampleRate),
+			ChannelCount:  int(track.Channels),
+			Path:          track.Path,
+			Year:          year,
+			BitRate:       int(track.BitRate),
+			Size:          int(track.SizeBytes),
 			Artists:       artistRefs,
 			DisplayArtist: displayArtist,
 		})
