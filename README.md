@@ -1,167 +1,384 @@
-# Sonora
+<div align="center">
 
-**Sonora** is a self-hosted music streaming server written in Go. It's built
-to be lightweight enough to run on a Raspberry Pi or a small VPS, speaks the
-**OpenSubsonic** protocol so you can use the mobile apps that already exist
-for it, and pairs with a custom terminal client as its main differentiator.
+<img src="docs/assets/banner.svg" alt="Sonora — your music, your server, your rules" width="100%">
 
-> Status: early development, but usable. The ingestion pipeline, streaming,
-> authentication, lyrics, and a broad OpenSubsonic subset all work
-> end-to-end — verified against a real client (Feishin). Docker packaging
-> (with auto-migration on startup) is ready.
+**A self-hosted music streaming server in Go — lightweight, OpenSubsonic-compatible, and built for people who care about audio fidelity.**
 
-## Why
+[![CI](https://github.com/raloonsoc/sonora/actions/workflows/ci.yml/badge.svg)](https://github.com/raloonsoc/sonora/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/raloonsoc/sonora?sort=semver)](https://github.com/raloonsoc/sonora/releases)
+[![Container](https://img.shields.io/badge/ghcr.io-raloonsoc%2Fsonora-2496ED?logo=docker&logoColor=white)](https://github.com/raloonsoc/sonora/pkgs/container/sonora)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
 
-Most self-hosted music servers either force you into a heavyweight stack or
-lock you into their own app. Sonora aims for the opposite:
-
-- **One static Go binary.** No JVM, no Node runtime, no bloated dependency
-  tree. Runs comfortably on constrained hardware (Raspberry Pi, small VPS,
-  a Proxmox LXC).
-- **OpenSubsonic-compatible.** Point any existing Subsonic/OpenSubsonic
-  client at it (DSub, Symfonium, play:Sub, etc.) and it just works.
-- **A first-class terminal client.** A Bubble Tea TUI ships alongside it for
-  people who live in the terminal — see [Companion CLI](#companion-cli).
-- **High audio fidelity.** Bit-perfect FLAC passthrough when the client
-  supports it, adaptive transcoding (Opus/AAC) when it doesn't.
-- **Legally clean by design.** Sonora only serves a library you already own.
-  There is no scraping, downloading, or acquisition tooling in this repo —
-  it manages files you put there, nothing else.
-
-## Architecture
-
-```
-Ingestion (polling watcher, configurable interval)
-    → ffprobe (metadata) + chromaprint (fingerprint, dedup)
-    → normalize to FLAC when needed
-    → ReplayGain (EBU R128)
-    → cover art extraction, with an iTunes Search API fallback when the
-      embedded picture can't be read locally
-    → PostgreSQL (metadata)
-
-API (Go)
-├── Native API — JWT auth, free-form design, used by the CLI client
-├── OpenSubsonic layer — adapter/translator over the same domain models
-│   ├── auth: MD5(password + salt) via query params (fixed contract)
-│   ├── getArtists / getArtist / getAlbum / getAlbumList2 / getGenres /
-│   │   getSong / search3
-│   ├── getCoverArt
-│   ├── getLyricsBySongId (OpenSubsonic, synced) + getLyrics (legacy),
-│   │   with a local .lrc parser and an LRCLIB fallback (exact match,
-│   │   then fuzzy search)
-│   ├── getPlaylists (read-only) / scrobble
-│   └── stream — Range requests, FLAC passthrough or on-demand transcode
-└── Storage — originals on local disk, transcode cache on local disk or
-    S3-compatible storage (R2 / MinIO)
+```console
+docker pull ghcr.io/raloonsoc/sonora:latest
 ```
 
-The native API and the OpenSubsonic layer are two views over the same
-domain model — OpenSubsonic support is an adapter, not a fork of the core
-logic.
+</div>
 
-## Features
+---
 
-### Done / working
+Sonora runs your music library as a streaming service you own. It speaks the
+**OpenSubsonic** protocol, so the mobile and desktop clients that already
+exist — Feishin, Symfonium, DSub, play:Sub — work against it out of the box.
+It ships as a single static Go binary with no JVM and no Node runtime, which
+means a Raspberry Pi or a €4/month VPS is enough to run it comfortably.
 
-- PostgreSQL schema (tracks, albums, artists, users, playlists) with
-  `golang-migrate` migrations and `sqlc`-generated queries.
-- Polling-based library watcher (configurable interval, default 30s):
-  scans the library and ingests any file not yet in the database. Works
-  identically whether Sonora runs natively or inside Docker with a bind
-  mount — unlike `fsnotify`, which doesn't reliably see host-side changes
-  through a Docker Desktop/OrbStack bind mount.
-- Full ingestion pipeline, watcher to database with no manual steps:
-  metadata extraction (`ffprobe`, with case-insensitive tag lookup),
-  ReplayGain analysis (EBU R128 via `ffmpeg loudnorm`), cover art
-  extraction (with an iTunes Search API fallback), artist/album dedup,
-  insert. Albums are grouped by the `album_artist` tag (falling back to
-  `artist`) so a featured-artist track doesn't fork off a duplicate album.
-- Chromaprint audio fingerprinting (`fpcalc`) on ingest: an exact-match
-  fingerprint lookup flags likely duplicate tracks (e.g. the same song
-  re-encoded at a different bitrate/format) with a warning log —
-  ingestion isn't blocked, since a false positive would otherwise
-  silently drop a legitimate track.
-- Streaming handler: HTTP Range requests (`http.ServeContent` over an
-  `io.ReadSeeker`), FLAC passthrough.
-- Authentication: bcrypt password storage for the future native API,
-  reversible AES-256-GCM storage + Subsonic token auth
-  (`MD5(password + salt)`) gating every OpenSubsonic endpoint, CLI
-  user provisioning (`sonora create-user`).
-- Lyrics: `.lrc` parser producing OpenSubsonic `structuredLyrics`
-  (millisecond timestamps), falling back to the [LRCLIB] API (exact
-  match, then fuzzy search) when no local file exists.
-- OpenSubsonic support, verified end-to-end against a real client
-  (Feishin): `ping`, `getArtists`, `getArtist`, `getAlbum`, `getAlbumList2`,
-  `getGenres`, `getSong`, `getCoverArt`, `stream`, `scrobble`, `search3`,
-  `getLyricsBySongId`, `getLyrics`, `getPlaylists`, `getPlaylist`,
-  `createPlaylist`, `updatePlaylist`, `deletePlaylist`, `star`, `unstar`,
-  `getStarred2`, `getMusicFolders`, `getOpenSubsonicExtensions`, `getUser`,
-  `getLicense`.
-  Responses support both XML (protocol default) and JSON (`f=json`).
-- Docker packaging: multi-stage `Dockerfile` (Alpine, `ffmpeg`/`ffprobe`
-  bundled), `docker-compose.yml` with PostgreSQL + healthcheck, and
-  automatic schema migration on startup (no external `migrate` CLI
-  needed).
+> [!NOTE]
+> **Status: early but usable.** Ingestion, streaming, authentication, lyrics,
+> playlists, favorites and a broad OpenSubsonic subset all work end-to-end,
+> verified against a real client (Feishin). Multi-arch Docker images are
+> published to `ghcr.io`. The native JWT API is the main piece still missing —
+> see [Roadmap](#roadmap).
 
-### Planned
+## Table of contents
 
-- [ ] JWT auth for the native API (used by the future `sonora-cli` client).
-- [ ] Multi-arch builds (amd64/arm64), GitHub Actions CI, image published
-      to `ghcr.io`.
+- [Why Sonora](#why-sonora)
+- [Quick start](#quick-start)
+  - [Container images](#container-images)
+- [How it works](#how-it-works)
+- [Configuration](#configuration)
+- [OpenSubsonic API coverage](#opensubsonic-api-coverage)
+- [Roadmap](#roadmap)
+- [Development](#development)
+- [Companion CLI](#companion-cli)
+- [License](#license)
+
+## Why Sonora
+
+Most self-hosted music servers either force a heavyweight stack on you or lock
+you into their own client. Sonora takes the opposite position:
+
+| | |
+|---|---|
+| **One static binary** | No JVM, no Node, no sprawling dependency tree. Runs on constrained hardware — Raspberry Pi, small VPS, a Proxmox LXC. |
+| **Bring your own client** | OpenSubsonic-compatible, so the existing client ecosystem works immediately. You are not locked into a first-party app. |
+| **Fidelity first** | Bit-perfect FLAC passthrough by default. Transcoding happens only when the source exceeds what clients reliably handle. |
+| **Terminal-native** | A Bubble Tea TUI client is developed alongside the server for people who live in a terminal. |
+| **Legally clean by design** | Sonora serves a library you already own. There is no scraping, downloading, or acquisition tooling here — and that is a deliberate scope boundary, not an oversight. |
+
+## Quick start
+
+**Requirements:** Docker and Docker Compose. Everything else — `ffmpeg`,
+`ffprobe`, `chromaprint` — is bundled in the image. Nothing to compile.
+
+Create a `docker-compose.yml`:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sonora
+      POSTGRES_PASSWORD: sonora
+      POSTGRES_DB: sonora
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonora"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sonora:
+    image: ghcr.io/raloonsoc/sonora:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4533:4533"
+    environment:
+      SONORA_DATABASE_URL: postgres://sonora:sonora@postgres:5432/sonora?sslmode=disable
+      SONORA_JWT_SECRET: ${SONORA_JWT_SECRET:?generate with openssl rand -base64 32}
+    volumes:
+      - /path/to/your/music:/music:ro
+      - cache:/cache
+
+volumes:
+  pgdata:
+  cache:
+```
+
+Then bring it up and create your first user:
+
+```bash
+export SONORA_JWT_SECRET=$(openssl rand -base64 32)
+docker compose up -d
+
+docker compose exec sonora sonora create-user \
+  --username admin --password '<password>' --admin
+```
+
+Sonora listens on **`:4533`**. Point any OpenSubsonic client at
+`http://<host>:4533` with those credentials and your library will appear as
+the watcher ingests it.
+
+The database schema is migrated automatically on startup — no external
+`migrate` CLI needed at runtime.
+
+> [!TIP]
+> Mount your library read-only (`:ro`, as above). Sonora never writes to your
+> source files — cover art and transcodes go to the separate cache volume.
+
+### Container images
+
+Published to the GitHub Container Registry, built for **`linux/amd64`** and
+**`linux/arm64`** (so a Raspberry Pi 4/5 works without changes):
+
+```bash
+docker pull ghcr.io/raloonsoc/sonora:latest
+```
+
+| Tag | Tracks |
+|---|---|
+| `latest` | Newest release. Convenient, but moves under you. |
+| `0.1.0` | An exact release. **Recommended for real deployments.** |
+| `0.1` | Latest patch within the `0.1` minor line. |
+| `0` | Latest release within the `0.x` major line. |
+
+> [!WARNING]
+> While Sonora is pre-1.0, `0.x` and `0.1` can still bring breaking changes
+> between minor versions. Pin an exact tag if you care about stability.
+
+### Building from source instead
+
+If you'd rather build the image yourself, the repo ships a compose file that
+does exactly that:
+
+```bash
+git clone https://github.com/raloonsoc/sonora.git
+cd sonora/deploy
+cp .env.example .env   # set SONORA_JWT_SECRET, point SONORA_LIBRARY_HOST_PATH at your music
+docker compose up -d --build
+```
+
+## How it works
+
+### Ingestion
+
+A polling watcher scans the library on a configurable interval (default 30s)
+and ingests anything not yet in the database.
+
+```
+library file (.flac .mp3 .m4a .aac .opus .ogg .wav)
+   │
+   ├─ ffprobe ............... metadata (case-insensitive tag lookup)
+   ├─ fpcalc ................ Chromaprint fingerprint → duplicate detection
+   ├─ ffmpeg loudnorm ....... ReplayGain analysis (EBU R128)
+   ├─ cover art ............. embedded picture, iTunes Search API fallback
+   └─ artist/album dedup .... then INSERT → PostgreSQL
+```
+
+Polling rather than `fsnotify` is a deliberate choice: `fsnotify` does not
+reliably observe host-side changes through a Docker Desktop/OrbStack bind
+mount, which is exactly how most people will run this. Polling behaves
+identically whether Sonora runs natively or containerized.
+
+Duplicate detection is advisory. An exact fingerprint match — the same song
+re-encoded at a different bitrate or format — logs a warning but does **not**
+block ingestion, since a false positive would otherwise silently swallow a
+legitimate track.
+
+Albums are grouped by the `album_artist` tag (falling back to `artist`) so a
+featured-artist track doesn't fork off a duplicate album. Multi-artist credits
+are parsed on ingest (`&`, `,`, `feat.`, `ft.`, `featuring`) into a full
+ordered artist list, while a single primary artist is retained per track.
+
+### Streaming
+
+```
+GET /rest/stream?id=…
+   │
+   ├─ sample rate ≤ 48kHz → FLAC/original passthrough, bit-perfect
+   └─ sample rate > 48kHz → on-demand Opus 128k transcode
+                             ├─ cached on local disk
+                             ├─ per-path mutex (no duplicate work on
+                             │   concurrent requests for the same track)
+                             └─ swept after 30 days
+```
+
+All streaming goes through `http.ServeContent`, so HTTP Range requests —
+seeking, resuming — are handled correctly.
+
+### Lyrics
+
+Local `.lrc` files sitting next to the audio are parsed into OpenSubsonic
+`structuredLyrics` with millisecond timestamps. When no local file exists,
+Sonora falls back to the [LRCLIB] API (exact match first, then fuzzy search).
+The fallback can be disabled to keep lookups fully offline.
+
+### Authentication
+
+OpenSubsonic's contract requires the server to verify `MD5(password + salt)`,
+which means it cannot store only a one-way hash. Sonora therefore keeps two
+representations: a **bcrypt** hash for the future native API, and a
+**reversible AES-256-GCM** encrypted copy used solely to satisfy the Subsonic
+token handshake. Every OpenSubsonic endpoint is gated by that token auth.
+
+## Configuration
+
+Configuration is **environment variables only** — no config files, nothing
+hardcoded — so third-party Docker/Compose deployments stay simple.
+
+### Required
+
+| Variable | Description |
+|---|---|
+| `SONORA_DATABASE_URL` | PostgreSQL connection string. |
+| `SONORA_JWT_SECRET` | Secret for signing native API JWTs. Generate with `openssl rand -base64 32`. |
+
+### Optional
+
+| Variable | Default | Description |
+|---|---|---|
+| `SONORA_HTTP_ADDR` | `:4533` | Listen address. |
+| `SONORA_LOG_LEVEL` | `info` | Log verbosity. |
+| `SONORA_LIBRARY_PATH` | `/music` | Library root inside the container. |
+| `SONORA_INCOMING_PATH` | `/music/incoming` | Watched folder for new files. |
+| `SONORA_INGEST_POLL_INTERVAL_SECONDS` | `30` | Watcher polling interval. |
+| `SONORA_COVER_ART_DIR` | `/cache/covers` | Extracted cover art storage. |
+| `SONORA_TRANSCODE_CACHE_PATH` | `/cache` | Transcode cache directory. |
+| `SONORA_TRANSCODE_WORKERS` | `2` | Concurrent `ffmpeg` transcode workers. |
+| `SONORA_LYRICS_LRCLIB_FALLBACK` | `true` | Query LRCLIB when no local `.lrc` exists. Set `false` to stay fully offline. |
+
+Compose-level paths (`SONORA_LIBRARY_HOST_PATH`, `SONORA_CACHE_HOST_PATH`)
+control what gets bind-mounted from the host. See
+[`deploy/.env.example`](deploy/.env.example).
+
+## OpenSubsonic API coverage
+
+Responses support both XML (protocol default) and JSON (`f=json`). Every
+endpoint is registered both bare and with the legacy `.view` suffix that
+older clients still send.
+
+| Area | Endpoints |
+|---|---|
+| **System** | `ping` · `getLicense` · `getOpenSubsonicExtensions` · `getMusicFolders` |
+| **Browsing** | `getArtists` · `getArtist` · `getAlbum` · `getAlbumList2` · `getSong` · `getGenres` |
+| **Search** | `search3` |
+| **Media** | `stream` · `getCoverArt` |
+| **Playlists** | `getPlaylists` · `getPlaylist` · `createPlaylist` · `updatePlaylist` · `deletePlaylist` |
+| **Favorites** | `star` · `unstar` · `getStarred2` |
+| **Lyrics** | `getLyricsBySongId` (synced) · `getLyrics` (legacy) |
+| **Other** | `scrobble` · `getUser` |
+
+Browsing is **ID3-based** (`getArtists`/`getAlbum`). The legacy folder-based
+endpoints (`getIndexes`, `getMusicDirectory`) are not implemented — modern
+clients use the ID3 endpoints.
+
+## Roadmap
+
+- [ ] **JWT auth for the native API** — the last piece blocking `sonora-cli`.
+      Subsonic token auth is unrelated and already done.
+- [ ] Propagate `starred` to `search3` and `getArtist` (already present on
+      `getSong`, `getAlbum`, `getAlbumList2`, `getStarred2`).
+- [ ] Offload the transcode cache to S3-compatible storage (R2 / MinIO).
+      Configuration keys are reserved but the backend is not implemented —
+      the cache is local-disk only today.
+
+<details>
+<summary><strong>Already shipped</strong></summary>
+
+- PostgreSQL schema with `golang-migrate` migrations and `sqlc`-generated
+  type-safe queries; automatic migration on startup.
+- Polling library watcher, container-safe.
+- Full ingestion pipeline: metadata, ReplayGain (EBU R128), cover art with
+  iTunes fallback, artist/album dedup, multi-artist parsing.
+- Chromaprint fingerprinting for duplicate detection.
+- Streaming with Range support, FLAC passthrough, on-demand Opus transcode
+  with per-path locking and a 30-day cache sweep.
+- bcrypt + AES-256-GCM credential storage, Subsonic token auth, and
+  `sonora create-user` provisioning.
+- Synced lyrics: `.lrc` parser plus LRCLIB fallback.
+- 25 OpenSubsonic endpoints, XML and JSON, verified against Feishin.
+- Multi-arch Docker images (amd64/arm64) published to `ghcr.io`, with CI
+  running vet, lint, and the full test suite against a real PostgreSQL.
+
+</details>
+
+## Development
+
+**Requirements:** Go 1.26+, PostgreSQL, `ffmpeg`/`ffprobe`, `chromaprint`
+(`fpcalc`).
+
+```bash
+go build ./...
+go vet ./...
+```
+
+### Tests
+
+Tests need a real PostgreSQL database with migrations already applied:
+
+```bash
+export SONORA_TEST_DATABASE_URL="postgres://user:pass@localhost:5432/sonora_test?sslmode=disable"
+migrate -database "$SONORA_TEST_DATABASE_URL" -path internal/db/migrations up
+
+go test -race -cover -p 1 ./...
+```
+
+> [!IMPORTANT]
+> `-p 1` is required, not cosmetic. Several test packages `TRUNCATE` shared
+> tables in the same database, and Go runs packages in parallel by default —
+> without it you get flaky foreign-key failures unrelated to your changes. CI
+> uses the same flag.
+
+The `migrate` CLI must be built with the `postgres` build tag, or it will
+compile fine and then fail at runtime with `unknown driver postgres`:
+
+```bash
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+```
+
+### Layout
+
+```
+cmd/sonora/            entrypoint + create-user subcommand
+internal/config/       environment configuration
+internal/ingest/       watcher, ffprobe, fingerprint, replaygain, cover art
+internal/db/           migrations + sqlc-generated queries
+internal/domain/       core models
+internal/streaming/    Range handler, transcode, cache
+internal/lyrics/       .lrc parser, LRCLIB client
+internal/auth/         bcrypt, AES-256-GCM, Subsonic token auth
+internal/subsonic/     OpenSubsonic endpoint handlers
+deploy/                Dockerfile, compose, .env.example
+```
+
+Database access uses [`sqlc`](https://sqlc.dev) — hand-written SQL compiled
+into type-safe Go — rather than an ORM, matching the lightweight design goal.
 
 ## Companion CLI
 
-A terminal client lives in a separate repository: **sonora-cli** (Go +
-[Bubble Tea]). It talks to any OpenSubsonic-compatible server, not just
-Sonora. Highlights:
+A terminal client lives in a separate repository: **`sonora-cli`** (Go +
+[Bubble Tea]). It targets any OpenSubsonic server, not just Sonora.
 
-- Playback delegated to `mpv` as a subprocess, controlled over its IPC
-  socket (play/pause/seek/volume).
-- Cover art rendered in-terminal via [rasterm] when the terminal supports a
-  graphics protocol (Kitty, iTerm2, Sixel), falling back to ASCII art
-  otherwise.
-- Synced lyrics in a side panel, highlighting the current line based on
-  playback position reported by `mpv`.
+- Playback delegated to `mpv` as a subprocess, driven over its IPC socket.
+- Cover art rendered in-terminal via [rasterm] on terminals with a graphics
+  protocol (Kitty, iTerm2, Sixel), with ASCII art as a fallback.
+- Synced lyrics panel that highlights the current line from `mpv`'s reported
+  playback position.
 
-See [`stmp`](https://github.com/wildeyedskies/stmp) for a similar prior art
-project.
+Prior art worth a look: [`stmp`](https://github.com/wildeyedskies/stmp).
 
-## Getting started
+## Prior art and references
 
-```bash
-cd deploy
-cp .env.example .env   # edit values, especially SONORA_JWT_SECRET
-docker compose up -d
-docker compose exec sonora sonora create-user --username admin --password <password> --admin
-```
-
-Configuration is entirely via environment variables — no hardcoded config
-files. Point your library at the `SONORA_LIBRARY_HOST_PATH` folder (or
-`deploy/library` by default) and Sonora will pick up files automatically.
-
-## Tech stack
-
-- **Language:** Go
-- **Database:** PostgreSQL
-- **Media tooling:** `ffmpeg` / `ffprobe`, `chromaprint` (`fpcalc`)
-- **Protocol:** [OpenSubsonic](https://opensubsonic.netlify.app/)
-- **Object storage (optional):** R2 / MinIO for transcode cache
-
-## Prior art / references
-
-- [Navidrome](https://github.com/navidrome/navidrome) — Go, real-world
-  Subsonic API implementation used as a reference.
-- [OpenSubsonic API spec](https://opensubsonic.netlify.app/)
+- [Navidrome](https://github.com/navidrome/navidrome) — Go, a real-world
+  Subsonic implementation used as a reference.
+- [OpenSubsonic specification](https://opensubsonic.netlify.app/)
 - [LRCLIB] — open API for synced lyrics.
-
-[LRCLIB]: https://lrclib.net/
-[Bubble Tea]: https://github.com/charmbracelet/bubbletea
-[rasterm]: https://github.com/BourgeoisBear/rasterm
 
 ## License
 
 Sonora is licensed under the [GNU Affero General Public License v3.0](LICENSE).
-The AGPL was chosen deliberately: if you run a modified version of Sonora
-as a network service, you must make the modified source available to your
-users. This keeps the project open even when deployed, not just when
+
+The AGPL was chosen deliberately. If you run a modified version of Sonora as a
+network service, you must make your modifications available to its users. This
+keeps the project open when it is *deployed*, not merely when it is
 distributed.
+
+[LRCLIB]: https://lrclib.net/
+[Bubble Tea]: https://github.com/charmbracelet/bubbletea
+[rasterm]: https://github.com/BourgeoisBear/rasterm
