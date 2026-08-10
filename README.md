@@ -76,6 +76,11 @@ logic.
   extraction (with an iTunes Search API fallback), artist/album dedup,
   insert. Albums are grouped by the `album_artist` tag (falling back to
   `artist`) so a featured-artist track doesn't fork off a duplicate album.
+- Chromaprint audio fingerprinting (`fpcalc`) on ingest: an exact-match
+  fingerprint lookup flags likely duplicate tracks (e.g. the same song
+  re-encoded at a different bitrate/format) with a warning log —
+  ingestion isn't blocked, since a false positive would otherwise
+  silently drop a legitimate track.
 - Streaming handler: HTTP Range requests (`http.ServeContent` over an
   `io.ReadSeeker`), FLAC passthrough.
 - Authentication: bcrypt password storage for the future native API,
@@ -99,7 +104,6 @@ logic.
 
 ### Planned
 
-- [ ] Chromaprint/`fpcalc` fingerprinting for duplicate detection.
 - [ ] JWT auth for the native API (used by the future `sonora-cli` client).
 - [ ] Multi-arch builds (amd64/arm64), GitHub Actions CI, image published
       to `ghcr.io`.

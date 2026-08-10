@@ -133,6 +133,15 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		}
 	}
 
+	fingerprint, err := FingerprintFile(path)
+	if err != nil {
+		slog.Warn("ingest: fingerprinting failed", "path", path, "error", err)
+		fingerprint = ""
+	} else if fingerprint != "" {
+		if existing, err := queries.GetTrackByFingerprint(ctx, fingerprint); err == nil {
+			slog.Warn("ingest: possible duplicate track detected", "path", path, "duplicated_of", existing.Path)
+		}
+	}
 	createdTrack, err := queries.CreateTrack(ctx, sqlc.CreateTrackParams{
 		Title:             track.Title,
 		AlbumID:           album.ID,
@@ -149,6 +158,7 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		Channels:          channels,
 		BitRate:           int32(track.BitRate),
 		SizeBytes:         track.SizeBytes,
+		Fingerprint:       fingerprint,
 	})
 
 	if err != nil {

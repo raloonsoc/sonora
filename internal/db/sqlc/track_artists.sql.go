@@ -56,7 +56,7 @@ func (q *Queries) ListArtistsByTrack(ctx context.Context, trackID pgtype.UUID) (
 }
 
 const listTracksByArtistIDIncludingFeatured = `-- name: ListTracksByArtistIDIncludingFeatured :many
-SELECT DISTINCT tracks.id, tracks.title, tracks.album_id, tracks.artist_id, tracks.genre, tracks.track_number, tracks.disc_number, tracks.duration_seconds, tracks.path, tracks.format, tracks.replay_gain_track_db, tracks.bit_depth, tracks.sample_rate, tracks.channels, tracks.play_count, tracks.last_played_at, tracks.bit_rate, tracks.size_bytes
+SELECT DISTINCT tracks.id, tracks.title, tracks.album_id, tracks.artist_id, tracks.genre, tracks.track_number, tracks.disc_number, tracks.duration_seconds, tracks.path, tracks.format, tracks.replay_gain_track_db, tracks.bit_depth, tracks.sample_rate, tracks.channels, tracks.play_count, tracks.last_played_at, tracks.bit_rate, tracks.size_bytes, tracks.fingerprint
 FROM tracks
 JOIN track_artists ON track_artists.track_id = tracks.id
 WHERE track_artists.artist_id = $1
@@ -91,6 +91,7 @@ func (q *Queries) ListTracksByArtistIDIncludingFeatured(ctx context.Context, art
 			&i.LastPlayedAt,
 			&i.BitRate,
 			&i.SizeBytes,
+			&i.Fingerprint,
 		); err != nil {
 			return nil, err
 		}

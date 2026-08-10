@@ -32,6 +32,7 @@ type Querier interface {
 	GetArtistByName(ctx context.Context, name string) (Artist, error)
 	GetPlaylist(ctx context.Context, id pgtype.UUID) (Playlist, error)
 	GetTrack(ctx context.Context, id pgtype.UUID) (Track, error)
+	GetTrackByFingerprint(ctx context.Context, fingerprint string) (Track, error)
 	GetTrackByPath(ctx context.Context, path string) (Track, error)
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)

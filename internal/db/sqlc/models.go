@@ -56,6 +56,7 @@ type Track struct {
 	LastPlayedAt      pgtype.Timestamptz `json:"last_played_at"`
 	BitRate           int32              `json:"bit_rate"`
 	SizeBytes         int64              `json:"size_bytes"`
+	Fingerprint       string             `json:"fingerprint"`
 }
 
 type TrackArtist struct {

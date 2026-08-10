@@ -15,14 +15,14 @@ const createTrack = `-- name: CreateTrack :one
 INSERT INTO tracks (
     title, album_id, artist_id, genre, track_number, disc_number,
     duration_seconds, path, format, replay_gain_track_db,
-    bit_depth, sample_rate, channels, bit_rate, size_bytes
+    bit_depth, sample_rate, channels, bit_rate, size_bytes, fingerprint
 )
 VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10,
-    $11, $12, $13, $14, $15
+    $11, $12, $13, $14, $15, $16
 )
-RETURNING id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes
+RETURNING id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes, fingerprint
 `
 
 type CreateTrackParams struct {
@@ -41,6 +41,7 @@ type CreateTrackParams struct {
 	Channels          int32         `json:"channels"`
 	BitRate           int32         `json:"bit_rate"`
 	SizeBytes         int64         `json:"size_bytes"`
+	Fingerprint       string        `json:"fingerprint"`
 }
 
 func (q *Queries) CreateTrack(ctx context.Context, arg CreateTrackParams) (Track, error) {
@@ -60,6 +61,7 @@ func (q *Queries) CreateTrack(ctx context.Context, arg CreateTrackParams) (Track
 		arg.Channels,
 		arg.BitRate,
 		arg.SizeBytes,
+		arg.Fingerprint,
 	)
 	var i Track
 	err := row.Scan(
@@ -81,6 +83,7 @@ func (q *Queries) CreateTrack(ctx context.Context, arg CreateTrackParams) (Track
 		&i.LastPlayedAt,
 		&i.BitRate,
 		&i.SizeBytes,
+		&i.Fingerprint,
 	)
 	return i, err
 }
@@ -96,7 +99,7 @@ func (q *Queries) DeleteTrack(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getTrack = `-- name: GetTrack :one
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes, fingerprint FROM tracks
 WHERE id = $1
 `
 
@@ -122,12 +125,45 @@ func (q *Queries) GetTrack(ctx context.Context, id pgtype.UUID) (Track, error) {
 		&i.LastPlayedAt,
 		&i.BitRate,
 		&i.SizeBytes,
+		&i.Fingerprint,
+	)
+	return i, err
+}
+
+const getTrackByFingerprint = `-- name: GetTrackByFingerprint :one
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes, fingerprint FROM tracks
+WHERE md5(fingerprint) = md5($1::text) AND fingerprint != ''
+`
+
+func (q *Queries) GetTrackByFingerprint(ctx context.Context, fingerprint string) (Track, error) {
+	row := q.db.QueryRow(ctx, getTrackByFingerprint, fingerprint)
+	var i Track
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.AlbumID,
+		&i.ArtistID,
+		&i.Genre,
+		&i.TrackNumber,
+		&i.DiscNumber,
+		&i.DurationSeconds,
+		&i.Path,
+		&i.Format,
+		&i.ReplayGainTrackDb,
+		&i.BitDepth,
+		&i.SampleRate,
+		&i.Channels,
+		&i.PlayCount,
+		&i.LastPlayedAt,
+		&i.BitRate,
+		&i.SizeBytes,
+		&i.Fingerprint,
 	)
 	return i, err
 }
 
 const getTrackByPath = `-- name: GetTrackByPath :one
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes, fingerprint FROM tracks
 WHERE path = $1
 `
 
@@ -153,6 +189,7 @@ func (q *Queries) GetTrackByPath(ctx context.Context, path string) (Track, error
 		&i.LastPlayedAt,
 		&i.BitRate,
 		&i.SizeBytes,
+		&i.Fingerprint,
 	)
 	return i, err
 }
@@ -216,7 +253,7 @@ func (q *Queries) ListTrackPaths(ctx context.Context) ([]string, error) {
 }
 
 const listTracksByAlbum = `-- name: ListTracksByAlbum :many
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes, fingerprint FROM tracks
 WHERE album_id = $1
 ORDER BY disc_number, track_number
 `
@@ -249,6 +286,7 @@ func (q *Queries) ListTracksByAlbum(ctx context.Context, albumID pgtype.UUID) ([
 			&i.LastPlayedAt,
 			&i.BitRate,
 			&i.SizeBytes,
+			&i.Fingerprint,
 		); err != nil {
 			return nil, err
 		}
@@ -261,7 +299,7 @@ func (q *Queries) ListTracksByAlbum(ctx context.Context, albumID pgtype.UUID) ([
 }
 
 const listTracksByArtist = `-- name: ListTracksByArtist :many
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes, fingerprint FROM tracks
 WHERE artist_id = $1
 ORDER BY title
 `
@@ -294,6 +332,7 @@ func (q *Queries) ListTracksByArtist(ctx context.Context, artistID pgtype.UUID) 
 			&i.LastPlayedAt,
 			&i.BitRate,
 			&i.SizeBytes,
+			&i.Fingerprint,
 		); err != nil {
 			return nil, err
 		}
@@ -323,7 +362,7 @@ func (q *Queries) ScrobbleTrack(ctx context.Context, arg ScrobbleTrackParams) er
 }
 
 const searchTracks = `-- name: SearchTracks :many
-SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes FROM tracks
+SELECT id, title, album_id, artist_id, genre, track_number, disc_number, duration_seconds, path, format, replay_gain_track_db, bit_depth, sample_rate, channels, play_count, last_played_at, bit_rate, size_bytes, fingerprint FROM tracks
 WHERE title ILIKE '%' || $1 || '%'
 ORDER BY title
 LIMIT $2
@@ -362,6 +401,7 @@ func (q *Queries) SearchTracks(ctx context.Context, arg SearchTracksParams) ([]T
 			&i.LastPlayedAt,
 			&i.BitRate,
 			&i.SizeBytes,
+			&i.Fingerprint,
 		); err != nil {
 			return nil, err
 		}

@@ -6,6 +6,10 @@ WHERE id = $1;
 SELECT * FROM tracks
 WHERE path = $1;
 
+-- name: GetTrackByFingerprint :one
+SELECT * FROM tracks
+WHERE md5(fingerprint) = md5(sqlc.arg(fingerprint)::text) AND fingerprint != '';
+
 -- name: ListTrackPaths :many
 SELECT path FROM tracks;
 
@@ -36,12 +40,12 @@ ORDER BY genre;
 INSERT INTO tracks (
     title, album_id, artist_id, genre, track_number, disc_number,
     duration_seconds, path, format, replay_gain_track_db,
-    bit_depth, sample_rate, channels, bit_rate, size_bytes
+    bit_depth, sample_rate, channels, bit_rate, size_bytes, fingerprint
 )
 VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10,
-    $11, $12, $13, $14, $15
+    $11, $12, $13, $14, $15, $16
 )
 RETURNING *;
 
