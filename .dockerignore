@@ -4,5 +4,5 @@ deploy/.env
 *.env
 *.env.local
 CLAUDE.md
-sonora
-sonora.exe
+/sonora
+/sonora.exe
