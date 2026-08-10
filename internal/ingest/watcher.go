@@ -21,13 +21,23 @@ var audioExtensions = map[string]bool{
 	".wav":  true,
 }
 
-func WatchLibrary(path string, interval time.Duration, queries *sqlc.Queries, processed chan<- string) error {
+func WatchLibrary(ctx context.Context, path string, interval time.Duration, queries *sqlc.Queries, processed chan<- string) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		paths, err := queries.ListTrackPaths(context.Background())
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+
+		paths, err := queries.ListTrackPaths(ctx)
 		if err != nil {
+			// A cancelled context is a clean shutdown, not a failure.
+			if ctx.Err() != nil {
+				return nil
+			}
 			return fmt.Errorf("ingest: listing track paths %s: %w", path, err)
 		}
 		pathRoute := make(map[string]bool, len(paths))
@@ -47,11 +57,19 @@ func WatchLibrary(path string, interval time.Duration, queries *sqlc.Queries, pr
 			if !audioExtensions[filepath.Ext(p)] {
 				return nil //not valid filetype
 			}
-			processed <- p
+			// Respect cancellation here too: an unread channel would
+			// otherwise block this walk forever.
+			select {
+			case processed <- p:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 			return nil
 		}); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
 			slog.Error("ingest: walking library path failed", "path", path, "error", err)
 		}
 	}
-	return nil
 }

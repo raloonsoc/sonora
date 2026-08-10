@@ -12,11 +12,18 @@ func TestWatchLibrary_DetectsNewFile(t *testing.T) {
 	dir := t.TempDir()
 	processed := make(chan string)
 
+	// t.Context() is cancelled when the test ends, so the watcher goroutine
+	// stops before t.TempDir() is removed and before the pool is closed —
+	// otherwise it keeps polling a deleted directory and logs after the test
+	// has completed, which panics.
+	done := make(chan struct{})
 	go func() {
-		if err := WatchLibrary(dir, 50*time.Millisecond, queries, processed); err != nil {
-			t.Log(err)
+		defer close(done)
+		if err := WatchLibrary(t.Context(), dir, 50*time.Millisecond, queries, processed); err != nil {
+			t.Error(err)
 		}
 	}()
+	t.Cleanup(func() { <-done })
 
 	filePath := filepath.Join(dir, "new-track.flac")
 	if err := os.WriteFile(filePath, []byte("fake audio data"), 0o644); err != nil {
@@ -38,11 +45,14 @@ func TestWatchLibrary_IgnoresNonAudioFiles(t *testing.T) {
 	dir := t.TempDir()
 	processed := make(chan string)
 
+	done := make(chan struct{})
 	go func() {
-		if err := WatchLibrary(dir, 50*time.Millisecond, queries, processed); err != nil {
-			t.Log(err)
+		defer close(done)
+		if err := WatchLibrary(t.Context(), dir, 50*time.Millisecond, queries, processed); err != nil {
+			t.Error(err)
 		}
 	}()
+	t.Cleanup(func() { <-done })
 
 	if err := os.WriteFile(filepath.Join(dir, "cover.jpg"), []byte("not audio"), 0o644); err != nil {
 		t.Fatalf("writing test file: %v", err)

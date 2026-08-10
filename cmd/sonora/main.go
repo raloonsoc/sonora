@@ -61,7 +61,7 @@ func main() {
 
 	interval := time.Duration(cfg.IngestPollIntervalSeconds) * time.Second
 	go func() {
-		if err := ingest.WatchLibrary(cfg.LibraryPath, interval, queries, processed); err != nil {
+		if err := ingest.WatchLibrary(context.Background(), cfg.LibraryPath, interval, queries, processed); err != nil {
 			slog.Error("ingest: watcher failed", "error", err)
 		}
 	}()
