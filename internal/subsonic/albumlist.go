@@ -19,19 +19,20 @@ type albumListEntry struct {
 }
 
 type albumListItem struct {
-	ID        string    `json:"id" xml:"id,attr"`
-	Album     string    `json:"album" xml:"album,attr"`
-	Title     string    `json:"title" xml:"title,attr"`
-	Name      string    `json:"name" xml:"name,attr"`
-	CoverArt  string    `json:"coverArt" xml:"coverArt,attr"`
-	SongCount int       `json:"songCount" xml:"songCount,attr"`
-	Created   time.Time `json:"created" xml:"created,attr"`
-	Duration  int       `json:"duration" xml:"duration,attr"`
-	PlayCount int       `json:"playCount" xml:"playCount,attr"`
-	ArtistID  string    `json:"artistId" xml:"artistId,attr"`
-	Artist    string    `json:"artist" xml:"artist,attr"`
-	Year      int       `json:"year" xml:"year,attr"`
-	Genre     string    `json:"genre" xml:"genre"`
+	ID        string     `json:"id" xml:"id,attr"`
+	Album     string     `json:"album" xml:"album,attr"`
+	Title     string     `json:"title" xml:"title,attr"`
+	Name      string     `json:"name" xml:"name,attr"`
+	CoverArt  string     `json:"coverArt" xml:"coverArt,attr"`
+	SongCount int        `json:"songCount" xml:"songCount,attr"`
+	Created   time.Time  `json:"created" xml:"created,attr"`
+	Duration  int        `json:"duration" xml:"duration,attr"`
+	PlayCount int        `json:"playCount" xml:"playCount,attr"`
+	ArtistID  string     `json:"artistId" xml:"artistId,attr"`
+	Artist    string     `json:"artist" xml:"artist,attr"`
+	Year      int        `json:"year" xml:"year,attr"`
+	Genre     string     `json:"genre" xml:"genre"`
+	Starred   *time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 type albumRow struct {
@@ -117,6 +118,26 @@ func (h *Handler) GetAlbumListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	username := r.URL.Query().Get("u")
+	user, err := h.Queries.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	starredRows, err := h.Queries.ListStarredItemIDsByType(r.Context(), sqlc.ListStarredItemIDsByTypeParams{
+		UserID:   user.ID,
+		ItemType: "album",
+	})
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	starredAlbumIDs := make(map[string]time.Time, len(starredRows))
+	for _, s := range starredRows {
+		starredAlbumIDs[s.ItemID.String()] = s.StarredAt.Time
+	}
+
 	artistNames := make(map[string]string)
 	items := make([]albumListItem, 0, len(albums))
 	for _, a := range albums {
@@ -134,6 +155,12 @@ func (h *Handler) GetAlbumListHandler(w http.ResponseWriter, r *http.Request) {
 		if a.ReleaseYear.Valid {
 			year = int(a.ReleaseYear.Int32)
 		}
+
+		var starred *time.Time
+		if t, ok := starredAlbumIDs[a.ID.String()]; ok {
+			starred = &t
+		}
+
 		items = append(items, albumListItem{
 			ID:        a.ID.String(),
 			Album:     a.Title,
@@ -148,6 +175,7 @@ func (h *Handler) GetAlbumListHandler(w http.ResponseWriter, r *http.Request) {
 			Year:      year,
 			PlayCount: int(a.PlayCount),
 			Duration:  int(a.DurationSeconds),
+			Starred:   starred,
 		})
 	}
 

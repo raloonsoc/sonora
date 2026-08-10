@@ -26,10 +26,10 @@ type artistsIndex struct {
 }
 
 type artistEntry struct {
-	ID         string    `json:"id" xml:"id,attr"`
-	Name       string    `json:"name" xml:"name,attr"`
-	AlbumCount int       `json:"albumCount" xml:"albumCount,attr"`
-	Starred    time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
+	ID         string     `json:"id" xml:"id,attr"`
+	Name       string     `json:"name" xml:"name,attr"`
+	AlbumCount int        `json:"albumCount" xml:"albumCount,attr"`
+	Starred    *time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 // Song types
@@ -61,6 +61,7 @@ type albumWithSongs struct {
 	Year      int         `json:"year" xml:"year,attr"`
 	Genre     string      `json:"genre" xml:"genre,attr"`
 	Song      []songEntry `json:"song" xml:"song"`
+	Starred   *time.Time  `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 type songEntry struct {
@@ -90,7 +91,7 @@ type songEntry struct {
 	Path          string         `json:"path" xml:"path,attr"`
 	Artists       []artistID3Ref `json:"artists" xml:"artists"`
 	DisplayArtist string         `json:"displayArtist" xml:"displayArtist,attr"`
-	Starred       time.Time      `json:"starred,omitempty" xml:"starred,attr,omitempty"`
+	Starred       *time.Time     `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 type artistID3Ref struct {
@@ -121,14 +122,14 @@ func contentTypeForFormat(format string) string {
 }
 
 type albumEntry struct {
-	Album    string    `json:"album" xml:"album,attr"`
-	Artist   string    `json:"artist" xml:"artist,attr"`
-	ArtistID string    `json:"artistId" xml:"artistId,attr"`
-	CoverArt string    `json:"coverArt" xml:"coverArt,attr"`
-	Duration int       `json:"duration" xml:"duration,attr"`
-	ID       string    `json:"id" xml:"id,attr"`
-	Name     string    `json:"name" xml:"name,attr"`
-	Starred  time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
+	Album    string     `json:"album" xml:"album,attr"`
+	Artist   string     `json:"artist" xml:"artist,attr"`
+	ArtistID string     `json:"artistId" xml:"artistId,attr"`
+	CoverArt string     `json:"coverArt" xml:"coverArt,attr"`
+	Duration int        `json:"duration" xml:"duration,attr"`
+	ID       string     `json:"id" xml:"id,attr"`
+	Name     string     `json:"name" xml:"name,attr"`
+	Starred  *time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 // ArtistWithAlbums types
@@ -226,6 +227,22 @@ func (h *Handler) GetAlbumHandler(w http.ResponseWriter, r *http.Request) {
 		year = int(album.ReleaseYear.Int32)
 	}
 
+	username := r.URL.Query().Get("u")
+	user, err := h.Queries.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var albumStarred *time.Time
+	if starredAt, err := h.Queries.GetStarredAt(r.Context(), sqlc.GetStarredAtParams{
+		UserID:   user.ID,
+		ItemType: "album",
+		ItemID:   album.ID,
+	}); err == nil {
+		albumStarred = &starredAt.Time
+	}
+
 	var songs []songEntry
 
 	for _, s := range tracks {
@@ -235,6 +252,14 @@ func (h *Handler) GetAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		artistRefs, displayArtist := artistRefsAndDisplay(linkedArtists)
+		var songStarred *time.Time
+		if starredAt, err := h.Queries.GetStarredAt(r.Context(), sqlc.GetStarredAtParams{
+			UserID:   user.ID,
+			ItemType: "track",
+			ItemID:   s.ID,
+		}); err == nil {
+			songStarred = &starredAt.Time
+		}
 		songs = append(songs, songEntry{
 			ID:            s.ID.String(),
 			Title:         s.Title,
@@ -260,6 +285,7 @@ func (h *Handler) GetAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			Size:          int(s.SizeBytes),
 			Artists:       artistRefs,
 			DisplayArtist: displayArtist,
+			Starred:       songStarred,
 		})
 	}
 
@@ -280,6 +306,7 @@ func (h *Handler) GetAlbumHandler(w http.ResponseWriter, r *http.Request) {
 		Year:      year,
 		Genre:     album.Genre,
 		Song:      songs,
+		Starred:   albumStarred,
 	}
 
 	encodeResponse(w, r, albumSubsonicResponse{
@@ -326,6 +353,22 @@ func (h *Handler) GetSongHandler(w http.ResponseWriter, r *http.Request) {
 
 	artistRefs, displayArtist := artistRefsAndDisplay(linkedArtists)
 
+	username := r.URL.Query().Get("u")
+	user, err := h.Queries.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var starred *time.Time
+	if starredAt, err := h.Queries.GetStarredAt(r.Context(), sqlc.GetStarredAtParams{
+		UserID:   user.ID,
+		ItemType: "track",
+		ItemID:   track.ID,
+	}); err == nil {
+		starred = &starredAt.Time
+	}
+
 	encodeResponse(w, r, songSubsonicResponse{
 		baseResponse: newBaseResponse(),
 		Song: songEntry{
@@ -344,6 +387,7 @@ func (h *Handler) GetSongHandler(w http.ResponseWriter, r *http.Request) {
 			Type:          "music",
 			Artists:       artistRefs,
 			DisplayArtist: displayArtist,
+			Starred:       starred,
 		},
 	})
 }

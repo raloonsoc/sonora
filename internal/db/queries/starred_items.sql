@@ -7,6 +7,14 @@ ON CONFLICT (user_id, item_type, item_id) DO NOTHING;
 DELETE FROM starred_items
 WHERE user_id = $1 AND item_type = $2 AND item_id = $3;
 
+-- name: GetStarredAt :one
+SELECT starred_at FROM starred_items
+WHERE user_id = $1 AND item_type = $2 AND item_id = $3;
+
+-- name: ListStarredItemIDsByType :many
+SELECT item_id, starred_at FROM starred_items
+WHERE user_id = $1 AND item_type = $2;
+
 -- name: ListStarredTracks :many
 SELECT tracks.*, starred_items.starred_at
 FROM tracks

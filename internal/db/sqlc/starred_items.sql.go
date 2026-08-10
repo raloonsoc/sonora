@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getStarredAt = `-- name: GetStarredAt :one
+SELECT starred_at FROM starred_items
+WHERE user_id = $1 AND item_type = $2 AND item_id = $3
+`
+
+type GetStarredAtParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	ItemType string      `json:"item_type"`
+	ItemID   pgtype.UUID `json:"item_id"`
+}
+
+func (q *Queries) GetStarredAt(ctx context.Context, arg GetStarredAtParams) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, getStarredAt, arg.UserID, arg.ItemType, arg.ItemID)
+	var starred_at pgtype.Timestamptz
+	err := row.Scan(&starred_at)
+	return starred_at, err
+}
+
 const listStarredAlbums = `-- name: ListStarredAlbums :many
 SELECT
     albums.id, albums.title, albums.artist_id, albums.release_year, albums.cover_art_path, albums.created_at,
@@ -97,6 +115,41 @@ func (q *Queries) ListStarredArtists(ctx context.Context, userID pgtype.UUID) ([
 	for rows.Next() {
 		var i ListStarredArtistsRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.StarredAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStarredItemIDsByType = `-- name: ListStarredItemIDsByType :many
+SELECT item_id, starred_at FROM starred_items
+WHERE user_id = $1 AND item_type = $2
+`
+
+type ListStarredItemIDsByTypeParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	ItemType string      `json:"item_type"`
+}
+
+type ListStarredItemIDsByTypeRow struct {
+	ItemID    pgtype.UUID        `json:"item_id"`
+	StarredAt pgtype.Timestamptz `json:"starred_at"`
+}
+
+func (q *Queries) ListStarredItemIDsByType(ctx context.Context, arg ListStarredItemIDsByTypeParams) ([]ListStarredItemIDsByTypeRow, error) {
+	rows, err := q.db.Query(ctx, listStarredItemIDsByType, arg.UserID, arg.ItemType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStarredItemIDsByTypeRow
+	for rows.Next() {
+		var i ListStarredItemIDsByTypeRow
+		if err := rows.Scan(&i.ItemID, &i.StarredAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -156,7 +156,7 @@ func (h *Handler) GetStarred2Handler(w http.ResponseWriter, r *http.Request) {
 			Size:          int(t.SizeBytes),
 			Artists:       artistRefs,
 			DisplayArtist: displayArtist,
-			Starred:       t.StarredAt.Time,
+			Starred:       &t.StarredAt.Time,
 		})
 	}
 	var albums []albumEntry
@@ -172,7 +172,7 @@ func (h *Handler) GetStarred2Handler(w http.ResponseWriter, r *http.Request) {
 			ArtistID: artist.ID.String(),
 			CoverArt: a.ID.String(),
 			Duration: int(a.DurationSeconds),
-			Starred:  a.StarredAt.Time,
+			Starred:  &a.StarredAt.Time,
 		})
 	}
 
@@ -181,7 +181,7 @@ func (h *Handler) GetStarred2Handler(w http.ResponseWriter, r *http.Request) {
 		artists = append(artists, artistEntry{
 			ID:      a.ID.String(),
 			Name:    a.Name,
-			Starred: a.StarredAt.Time,
+			Starred: &a.StarredAt.Time,
 		})
 	}
 	encodeResponse(w, r, starred2SubsonicResponse{
