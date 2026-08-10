@@ -12,7 +12,11 @@ func TestWatchLibrary_DetectsNewFile(t *testing.T) {
 	dir := t.TempDir()
 	processed := make(chan string)
 
-	go WatchLibrary(dir, 50*time.Millisecond, queries, processed)
+	go func() {
+		if err := WatchLibrary(dir, 50*time.Millisecond, queries, processed); err != nil {
+			t.Log(err)
+		}
+	}()
 
 	filePath := filepath.Join(dir, "new-track.flac")
 	if err := os.WriteFile(filePath, []byte("fake audio data"), 0o644); err != nil {
@@ -34,7 +38,11 @@ func TestWatchLibrary_IgnoresNonAudioFiles(t *testing.T) {
 	dir := t.TempDir()
 	processed := make(chan string)
 
-	go WatchLibrary(dir, 50*time.Millisecond, queries, processed)
+	go func() {
+		if err := WatchLibrary(dir, 50*time.Millisecond, queries, processed); err != nil {
+			t.Log(err)
+		}
+	}()
 
 	if err := os.WriteFile(filepath.Join(dir, "cover.jpg"), []byte("not audio"), 0o644); err != nil {
 		t.Fatalf("writing test file: %v", err)

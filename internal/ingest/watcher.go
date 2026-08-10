@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -33,7 +34,7 @@ func WatchLibrary(path string, interval time.Duration, queries *sqlc.Queries, pr
 		for _, p := range paths {
 			pathRoute[p] = true
 		}
-		filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+		if err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -48,7 +49,9 @@ func WatchLibrary(path string, interval time.Duration, queries *sqlc.Queries, pr
 			}
 			processed <- p
 			return nil
-		})
+		}); err != nil {
+			slog.Error("ingest: walking library path failed", "path", path, "error", err)
+		}
 	}
 	return nil
 }

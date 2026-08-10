@@ -35,7 +35,7 @@ func (h *Handler) ScrobbleHandler(w http.ResponseWriter, r *http.Request) {
 		playedAt = pgtype.Timestamptz{Time: time.UnixMilli(ms), Valid: true}
 	}
 
-	var submission bool = true
+	var submission = true
 
 	submissionParam := r.URL.Query().Get("submission")
 	if submissionParam == "false" {

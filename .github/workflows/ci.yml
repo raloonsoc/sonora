@@ -46,10 +46,20 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: go test
-        run: go test -race -cover ./...
+      - name: install migrate CLI
+        run: go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+      - name: run migrations
+        run: migrate -database "$DATABASE_URL" -path internal/db/migrations up
         env:
-          SONORA_DATABASE_URL: postgres://sonora:sonora@localhost:5432/sonora_test?sslmode=disable
+          DATABASE_URL: postgres://sonora:sonora@localhost:5432/sonora_test?sslmode=disable
+      - name: go test
+        # -p 1 runs packages sequentially: several _test.go files TRUNCATE
+        # the same tables via a shared test database, and parallel packages
+        # racing that TRUNCATE against each other's inserts causes flaky
+        # foreign-key failures unrelated to the code under test.
+        run: go test -race -cover -p 1 ./...
+        env:
+          SONORA_TEST_DATABASE_URL: postgres://sonora:sonora@localhost:5432/sonora_test?sslmode=disable
 
   build:
     runs-on: ubuntu-latest

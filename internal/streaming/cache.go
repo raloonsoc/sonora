@@ -38,7 +38,7 @@ func CleanupExpiredCache(cacheDir string, maxAge time.Duration) error {
 			return err
 		}
 		if info.ModTime().Before(cutoff) {
-			os.Remove(path)
+			return os.Remove(path)
 		}
 		return nil
 	})

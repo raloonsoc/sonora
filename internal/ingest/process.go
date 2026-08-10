@@ -107,18 +107,18 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 		if replacedStr != "" {
 			if err := DownloadCoverArt(ctx, replacedStr, coverPath); err != nil {
 				slog.Error("ingest: downloading fallback cover art failed", "error", err)
-			} else {
-				queries.UpdateAlbumCoverArt(ctx, sqlc.UpdateAlbumCoverArtParams{
-					ID:           album.ID,
-					CoverArtPath: coverPath,
-				})
+			} else if err := queries.UpdateAlbumCoverArt(ctx, sqlc.UpdateAlbumCoverArtParams{
+				ID:           album.ID,
+				CoverArtPath: coverPath,
+			}); err != nil {
+				slog.Error("ingest: saving fallback cover art path failed", "error", err)
 			}
 		}
-	} else {
-		queries.UpdateAlbumCoverArt(ctx, sqlc.UpdateAlbumCoverArtParams{
-			ID:           album.ID,
-			CoverArtPath: coverPath,
-		})
+	} else if err := queries.UpdateAlbumCoverArt(ctx, sqlc.UpdateAlbumCoverArtParams{
+		ID:           album.ID,
+		CoverArtPath: coverPath,
+	}); err != nil {
+		slog.Error("ingest: saving cover art path failed", "error", err)
 	}
 
 	var bitDepth, sampleRate, channels int32

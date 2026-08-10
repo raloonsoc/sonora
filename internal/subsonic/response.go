@@ -3,6 +3,7 @@ package subsonic
 import (
 	"encoding/json"
 	"encoding/xml"
+	"log/slog"
 	"net/http"
 )
 
@@ -47,11 +48,18 @@ func newBaseResponse() baseResponse {
 func encodeResponse(w http.ResponseWriter, r *http.Request, resp any) {
 	if r.URL.Query().Get("f") == "json" {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"subsonic-response": resp})
+		if err := json.NewEncoder(w).Encode(map[string]any{"subsonic-response": resp}); err != nil {
+			slog.Error("subsonic: encoding JSON response failed", "error", err)
+		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/xml")
-	w.Write([]byte(xml.Header))
-	xml.NewEncoder(w).Encode(resp)
+	if _, err := w.Write([]byte(xml.Header)); err != nil {
+		slog.Error("subsonic: writing XML header failed", "error", err)
+		return
+	}
+	if err := xml.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("subsonic: encoding XML response failed", "error", err)
+	}
 }

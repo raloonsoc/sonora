@@ -31,7 +31,7 @@ func FetchFromLRCLIB(ctx context.Context, artist, track, album string, durationS
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return "", nil
@@ -70,7 +70,7 @@ func SearchLRCLIB(ctx context.Context, artist, track string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return "", nil

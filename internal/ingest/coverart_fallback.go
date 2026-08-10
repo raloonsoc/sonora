@@ -31,7 +31,7 @@ func FetchCoverArtURL(ctx context.Context, artist, album string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return "", nil
@@ -67,7 +67,7 @@ func DownloadCoverArt(ctx context.Context, imageURL, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("ingest: downloading cover art returned status %d", resp.StatusCode)
@@ -76,7 +76,7 @@ func DownloadCoverArt(ctx context.Context, imageURL, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	_, err = io.Copy(out, resp.Body)
 	return err
