@@ -20,10 +20,14 @@ type playlistsEntry struct {
 }
 
 type playlistItem struct {
-	ID     string `json:"id" xml:"id,attr"`
-	Name   string `json:"name" xml:"name,attr"`
-	Owner  string `json:"owner" xml:"owner,attr"`
-	Public bool   `json:"public" xml:"public,attr"`
+	ID        string    `json:"id" xml:"id,attr"`
+	Name      string    `json:"name" xml:"name,attr"`
+	Owner     string    `json:"owner" xml:"owner,attr"`
+	Public    bool      `json:"public" xml:"public,attr"`
+	Created   time.Time `json:"created" xml:"created,attr"`
+	Changed   time.Time `json:"changed" xml:"changed,attr"`
+	SongCount int       `json:"songCount" xml:"songCount,attr"`
+	Duration  int       `json:"duration" xml:"duration,attr"`
 }
 
 type playlistWithSongsSubsonicResponse struct {
@@ -62,10 +66,14 @@ func (h *Handler) GetPlaylistsHandler(w http.ResponseWriter, r *http.Request) {
 	items := make([]playlistItem, 0, len(playlists))
 	for _, p := range playlists {
 		items = append(items, playlistItem{
-			ID:     p.ID.String(),
-			Name:   p.Name,
-			Owner:  username,
-			Public: p.Public,
+			ID:        p.ID.String(),
+			Name:      p.Name,
+			Owner:     username,
+			Public:    p.Public,
+			Created:   p.CreatedAt.Time,
+			Changed:   p.UpdatedAt.Time,
+			SongCount: int(p.SongCount),
+			Duration:  int(p.DurationSeconds),
 		})
 	}
 

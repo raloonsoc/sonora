@@ -67,20 +67,38 @@ func (q *Queries) GetPlaylist(ctx context.Context, id pgtype.UUID) (Playlist, er
 }
 
 const listPlaylistsByOwner = `-- name: ListPlaylistsByOwner :many
-SELECT id, name, owner_id, public, created_at, updated_at FROM playlists
-WHERE owner_id = $1
-ORDER BY name
+SELECT
+    playlists.id, playlists.name, playlists.owner_id, playlists.public, playlists.created_at, playlists.updated_at,
+    COUNT(playlist_tracks.track_id)::int AS song_count,
+    COALESCE(SUM(tracks.duration_seconds), 0)::int AS duration_seconds
+FROM playlists
+LEFT JOIN playlist_tracks ON playlist_tracks.playlist_id = playlists.id
+LEFT JOIN tracks ON tracks.id = playlist_tracks.track_id
+WHERE playlists.owner_id = $1
+GROUP BY playlists.id
+ORDER BY playlists.name
 `
 
-func (q *Queries) ListPlaylistsByOwner(ctx context.Context, ownerID pgtype.UUID) ([]Playlist, error) {
+type ListPlaylistsByOwnerRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	Name            string             `json:"name"`
+	OwnerID         pgtype.UUID        `json:"owner_id"`
+	Public          bool               `json:"public"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SongCount       int32              `json:"song_count"`
+	DurationSeconds int32              `json:"duration_seconds"`
+}
+
+func (q *Queries) ListPlaylistsByOwner(ctx context.Context, ownerID pgtype.UUID) ([]ListPlaylistsByOwnerRow, error) {
 	rows, err := q.db.Query(ctx, listPlaylistsByOwner, ownerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Playlist
+	var items []ListPlaylistsByOwnerRow
 	for rows.Next() {
-		var i Playlist
+		var i ListPlaylistsByOwnerRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -88,6 +106,8 @@ func (q *Queries) ListPlaylistsByOwner(ctx context.Context, ownerID pgtype.UUID)
 			&i.Public,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SongCount,
+			&i.DurationSeconds,
 		); err != nil {
 			return nil, err
 		}

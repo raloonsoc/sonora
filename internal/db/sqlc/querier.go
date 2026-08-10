@@ -42,7 +42,7 @@ type Querier interface {
 	ListArtistsByTrack(ctx context.Context, trackID pgtype.UUID) ([]Artist, error)
 	ListGenres(ctx context.Context) ([]ListGenresRow, error)
 	ListPlaylistTracks(ctx context.Context, playlistID pgtype.UUID) ([]PlaylistTrack, error)
-	ListPlaylistsByOwner(ctx context.Context, ownerID pgtype.UUID) ([]Playlist, error)
+	ListPlaylistsByOwner(ctx context.Context, ownerID pgtype.UUID) ([]ListPlaylistsByOwnerRow, error)
 	ListTrackPaths(ctx context.Context) ([]string, error)
 	ListTracksByAlbum(ctx context.Context, albumID pgtype.UUID) ([]Track, error)
 	ListTracksByArtist(ctx context.Context, artistID pgtype.UUID) ([]Track, error)
