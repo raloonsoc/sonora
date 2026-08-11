@@ -168,6 +168,7 @@ library file (.flac .mp3 .m4a .aac .opus .ogg .wav)
    ├─ fpcalc ................ Chromaprint fingerprint → duplicate detection
    ├─ ffmpeg loudnorm ....... ReplayGain analysis (EBU R128)
    ├─ cover art ............. embedded picture, iTunes Search API fallback
+   ├─ artist photo .......... new artists only, via Deezer's public search
    └─ artist/album dedup .... then INSERT → PostgreSQL
 ```
 
@@ -185,6 +186,14 @@ Albums are grouped by the `album_artist` tag (falling back to `artist`) so a
 featured-artist track doesn't fork off a duplicate album. Multi-artist credits
 are parsed on ingest (`&`, `,`, `feat.`, `ft.`, `featuring`) into a full
 ordered artist list, while a single primary artist is retained per track.
+
+Artist photos come from Deezer's public artist search (no API key
+required) — iTunes Search, already used for album art, has no equivalent
+for artists. The lookup only runs once, when an artist row is first
+created, and never for `album_artist`-only composite names (a featured
+artist credit, not a real browsable artist). The photo is stored as the
+remote URL, not downloaded locally, matching OpenSubsonic's
+`artistImageUrl` semantics.
 
 ### Streaming
 
@@ -274,7 +283,7 @@ older clients still send.
 | Area | Endpoints |
 |---|---|
 | **System** | `ping` · `getLicense` · `getOpenSubsonicExtensions` · `getMusicFolders` |
-| **Browsing** | `getArtists` · `getArtist` · `getAlbum` · `getAlbumList2` · `getSong` · `getGenres` |
+| **Browsing** | `getArtists` · `getArtist` (both with artist photos) · `getAlbum` · `getAlbumList2` · `getSong` · `getGenres` |
 | **Search** | `search3` |
 | **Media** | `stream` · `getCoverArt` |
 | **Playlists** | `getPlaylists` · `getPlaylist` · `createPlaylist` · `updatePlaylist` · `deletePlaylist` |
@@ -290,8 +299,9 @@ clients use the ID3 endpoints.
 
 - [ ] **JWT auth for the native API** — the last piece blocking `sonora-cli`.
       Subsonic token auth is unrelated and already done.
-- [ ] Propagate `starred` to `search3` and `getArtist` (already present on
-      `getSong`, `getAlbum`, `getAlbumList2`, `getStarred2`).
+- [ ] Propagate `starred` to `search3` (already present everywhere else:
+      `getSong`, `getAlbum`, `getAlbumList2`, `getArtist`, `getArtists`,
+      `getStarred2`).
 - [ ] Offload the transcode cache to S3-compatible storage (R2 / MinIO).
       Configuration keys are reserved but the backend is not implemented —
       the cache is local-disk only today.
@@ -303,7 +313,8 @@ clients use the ID3 endpoints.
   type-safe queries; automatic migration on startup.
 - Polling library watcher, container-safe.
 - Full ingestion pipeline: metadata, ReplayGain (EBU R128), cover art with
-  iTunes fallback, artist/album dedup, multi-artist parsing.
+  iTunes fallback, artist/album dedup, multi-artist parsing, artist photos
+  via Deezer.
 - Chromaprint fingerprinting for duplicate detection.
 - Streaming with Range support, FLAC passthrough, on-demand transcode
   (Opus/AAC/MP3, negotiated via the OpenSubsonic `format` param) with
