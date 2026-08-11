@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/raloonsoc/sonora/internal/auth"
@@ -83,7 +85,30 @@ func main() {
 		slog.Info("request", "method", r.Method, "path", r.URL.Path, "remote", r.RemoteAddr)
 		corsProtectedMux.ServeHTTP(w, r)
 	})
-	if err := http.ListenAndServe(cfg.HTTPAddr, loggedMux); err != nil {
+	srv := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           loggedMux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	serverErr := make(chan error, 1)
+
+	go func() {
+		err := srv.ListenAndServe()
+		serverErr <- err
+	}()
+
+	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case <-shutdownSignal.Done():
+		slog.Info("shutting down")
+		ctxShutdown, cancel := context.WithTimeout(shutdownSignal, 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctxShutdown); err != nil {
+			slog.Error("graceful shutdown failed", "error", err)
+		}
+	case err := <-serverErr:
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
