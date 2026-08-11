@@ -13,8 +13,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 
-	LibraryPath  string
-	IncomingPath string
+	LibraryPath string
 
 	IngestPollIntervalSeconds int
 
@@ -72,7 +71,6 @@ func Load() (Config, error) {
 		HTTPAddr:           getEnvOrDefault("SONORA_HTTP_ADDR", ":4533"),
 		LogLevel:           getEnvOrDefault("SONORA_LOG_LEVEL", "info"),
 		LibraryPath:        getEnvOrDefault("SONORA_LIBRARY_PATH", "/music"),
-		IncomingPath:       getEnvOrDefault("SONORA_INCOMING_PATH", "/music/incoming"),
 		TranscodeCachePath: getEnvOrDefault("SONORA_TRANSCODE_CACHE_PATH", "/cache"),
 		CoverArtDir:        getEnvOrDefault("SONORA_COVER_ART_DIR", "/cache/covers"),
 		S3Endpoint:         getEnvOrDefault("SONORA_S3_ENDPOINT", ""),

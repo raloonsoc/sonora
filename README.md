@@ -235,8 +235,7 @@ hardcoded — so third-party Docker/Compose deployments stay simple.
 |---|---|---|
 | `SONORA_HTTP_ADDR` | `:4533` | Listen address. |
 | `SONORA_LOG_LEVEL` | `info` | Log verbosity. |
-| `SONORA_LIBRARY_PATH` | `/music` | Library root inside the container. |
-| `SONORA_INCOMING_PATH` | `/music/incoming` | Watched folder for new files. |
+| `SONORA_LIBRARY_PATH` | `/music` | Library root inside the container; the watcher scans it directly. |
 | `SONORA_INGEST_POLL_INTERVAL_SECONDS` | `30` | Watcher polling interval. |
 | `SONORA_COVER_ART_DIR` | `/cache/covers` | Extracted cover art storage. |
 | `SONORA_TRANSCODE_CACHE_PATH` | `/cache` | Transcode cache directory. |

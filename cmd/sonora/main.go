@@ -32,6 +32,18 @@ func main() {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
+
+	// SONORA_LOG_LEVEL was documented since the first release but never
+	// wired up — the server always logged at Info regardless of what was
+	// set. An invalid value falls back to Info rather than failing startup:
+	// a typo in log verbosity shouldn't take the server down.
+	var logLevel slog.Level
+	if err := logLevel.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
+		slog.Warn("invalid SONORA_LOG_LEVEL, defaulting to info", "value", cfg.LogLevel)
+		logLevel = slog.LevelInfo
+	}
+	slog.SetLogLoggerLevel(logLevel)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
