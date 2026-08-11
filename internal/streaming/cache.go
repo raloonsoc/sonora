@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-func CachePath(cacheDir, trackID string) string {
-	return filepath.Join(cacheDir, trackID+".opus")
+func CachePath(cacheDir, trackID, extension string) string {
+	return filepath.Join(cacheDir, trackID+"."+extension)
 }
 
 func CacheExists(path string) bool {

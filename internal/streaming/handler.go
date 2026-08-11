@@ -33,15 +33,23 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// format=raw (OpenSubsonic 1.9.0+) explicitly disables transcoding,
+	// same as when the source is already within the passthrough range.
+	requestedFormat := r.URL.Query().Get("format")
+	needsTranscode := track.SampleRate > 48000 && requestedFormat != "raw"
+
 	sourcePath := track.Path
-	if track.SampleRate > 48000 {
-		cachePath := CachePath(h.TranscodeCacheDir, track.ID.String())
+	contentType := ""
+
+	if needsTranscode {
+		format := ResolveFormat(requestedFormat)
+		cachePath := CachePath(h.TranscodeCacheDir, track.ID.String(), format.Extension)
 		mu := lockForPath(cachePath)
 		if !CacheExists(cachePath) {
 			err := func() error {
 				h.TranscodeSem <- struct{}{}
 				defer func() { <-h.TranscodeSem }()
-				return TranscodeToOpus(track.Path, cachePath)
+				return Transcode(track.Path, cachePath, format)
 			}()
 
 			if err != nil {
@@ -52,6 +60,7 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		unlockForPath(cachePath, mu)
 		sourcePath = cachePath
+		contentType = format.ContentType
 	}
 
 	file, err := os.Open(sourcePath)
@@ -66,6 +75,10 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
+	}
+
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
 	}
 
 	http.ServeContent(w, r, info.Name(), info.ModTime(), file)
