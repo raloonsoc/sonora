@@ -38,6 +38,20 @@ func ProcessFile(ctx context.Context, path string, queries *sqlc.Queries, coverA
 			if err != nil {
 				return fmt.Errorf("ingest: creating artist %q: %w", name, err)
 			}
+			// Only fetched for newly-created artists, not on every track
+			// by an already-known one, and not for album_artist (which
+			// can be a composite grouping name, not a real browsable
+			// artist — see CLAUDE.md).
+			if imageURL, err := FetchArtistImageURL(ctx, name); err != nil {
+				slog.Error("ingest: fetching artist image failed", "artist", name, "error", err)
+			} else if imageURL != "" {
+				if err := queries.UpdateArtistImageURL(ctx, sqlc.UpdateArtistImageURLParams{
+					ID:       trackArtist.ID,
+					ImageUrl: imageURL,
+				}); err != nil {
+					slog.Error("ingest: saving artist image failed", "artist", name, "error", err)
+				}
+			}
 		}
 		trackArtists = append(trackArtists, trackArtist)
 	}

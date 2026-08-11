@@ -18,8 +18,9 @@ type Album struct {
 }
 
 type Artist struct {
-	ID   pgtype.UUID `json:"id"`
-	Name string      `json:"name"`
+	ID       pgtype.UUID `json:"id"`
+	Name     string      `json:"name"`
+	ImageUrl string      `json:"image_url"`
 }
 
 type Playlist struct {

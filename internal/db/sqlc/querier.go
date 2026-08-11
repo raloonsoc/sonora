@@ -64,6 +64,7 @@ type Querier interface {
 	StarItem(ctx context.Context, arg StarItemParams) error
 	UnstarItem(ctx context.Context, arg UnstarItemParams) error
 	UpdateAlbumCoverArt(ctx context.Context, arg UpdateAlbumCoverArtParams) error
+	UpdateArtistImageURL(ctx context.Context, arg UpdateArtistImageURLParams) error
 	UpdatePlaylist(ctx context.Context, arg UpdatePlaylistParams) (Playlist, error)
 }
 

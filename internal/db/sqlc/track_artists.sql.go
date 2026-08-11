@@ -28,7 +28,7 @@ func (q *Queries) CreateTrackArtist(ctx context.Context, arg CreateTrackArtistPa
 }
 
 const listArtistsByTrack = `-- name: ListArtistsByTrack :many
-SELECT artists.id, artists.name
+SELECT artists.id, artists.name, artists.image_url
 FROM artists
 JOIN track_artists ON track_artists.artist_id = artists.id
 WHERE track_artists.track_id = $1
@@ -44,7 +44,7 @@ func (q *Queries) ListArtistsByTrack(ctx context.Context, trackID pgtype.UUID) (
 	var items []Artist
 	for rows.Next() {
 		var i Artist
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name, &i.ImageUrl); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

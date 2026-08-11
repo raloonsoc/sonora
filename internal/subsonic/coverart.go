@@ -21,7 +21,19 @@ func (h *Handler) GetCoverArtHandler(w http.ResponseWriter, r *http.Request) {
 
 	album, err := h.Queries.GetAlbum(r.Context(), albumId)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		// Not an album id — try artist next. Artist photos are stored as
+		// a remote URL (Deezer), not a local file, so they're served via
+		// redirect rather than os.Open below.
+		artist, artistErr := h.Queries.GetArtist(r.Context(), albumId)
+		if artistErr != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if artist.ImageUrl == "" {
+			http.Error(w, "artist image not found", http.StatusNotFound)
+			return
+		}
+		http.Redirect(w, r, artist.ImageUrl, http.StatusFound)
 		return
 	}
 

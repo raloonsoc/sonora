@@ -23,6 +23,11 @@ INSERT INTO artists (name)
 VALUES ($1)
 RETURNING *;
 
+-- name: UpdateArtistImageURL :exec
+UPDATE artists
+SET image_url = $2
+WHERE id = $1;
+
 -- name: DeleteArtist :exec
 DELETE FROM artists
 WHERE id = $1;

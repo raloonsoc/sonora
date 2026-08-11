@@ -14,13 +14,13 @@ import (
 const createArtist = `-- name: CreateArtist :one
 INSERT INTO artists (name)
 VALUES ($1)
-RETURNING id, name
+RETURNING id, name, image_url
 `
 
 func (q *Queries) CreateArtist(ctx context.Context, name string) (Artist, error) {
 	row := q.db.QueryRow(ctx, createArtist, name)
 	var i Artist
-	err := row.Scan(&i.ID, &i.Name)
+	err := row.Scan(&i.ID, &i.Name, &i.ImageUrl)
 	return i, err
 }
 
@@ -35,31 +35,31 @@ func (q *Queries) DeleteArtist(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getArtist = `-- name: GetArtist :one
-SELECT id, name FROM artists
+SELECT id, name, image_url FROM artists
 WHERE id = $1
 `
 
 func (q *Queries) GetArtist(ctx context.Context, id pgtype.UUID) (Artist, error) {
 	row := q.db.QueryRow(ctx, getArtist, id)
 	var i Artist
-	err := row.Scan(&i.ID, &i.Name)
+	err := row.Scan(&i.ID, &i.Name, &i.ImageUrl)
 	return i, err
 }
 
 const getArtistByName = `-- name: GetArtistByName :one
-SELECT id, name FROM artists
+SELECT id, name, image_url FROM artists
 WHERE name = $1
 `
 
 func (q *Queries) GetArtistByName(ctx context.Context, name string) (Artist, error) {
 	row := q.db.QueryRow(ctx, getArtistByName, name)
 	var i Artist
-	err := row.Scan(&i.ID, &i.Name)
+	err := row.Scan(&i.ID, &i.Name, &i.ImageUrl)
 	return i, err
 }
 
 const listArtists = `-- name: ListArtists :many
-SELECT DISTINCT artists.id, artists.name FROM artists
+SELECT DISTINCT artists.id, artists.name, artists.image_url FROM artists
 JOIN track_artists ON track_artists.artist_id = artists.id
 ORDER BY name
 `
@@ -73,7 +73,7 @@ func (q *Queries) ListArtists(ctx context.Context) ([]Artist, error) {
 	var items []Artist
 	for rows.Next() {
 		var i Artist
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name, &i.ImageUrl); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -85,7 +85,7 @@ func (q *Queries) ListArtists(ctx context.Context) ([]Artist, error) {
 }
 
 const searchArtists = `-- name: SearchArtists :many
-SELECT DISTINCT artists.id, artists.name FROM artists
+SELECT DISTINCT artists.id, artists.name, artists.image_url FROM artists
 JOIN track_artists ON track_artists.artist_id = artists.id
 WHERE artists.name ILIKE '%' || $1 || '%'
 ORDER BY name
@@ -106,7 +106,7 @@ func (q *Queries) SearchArtists(ctx context.Context, arg SearchArtistsParams) ([
 	var items []Artist
 	for rows.Next() {
 		var i Artist
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name, &i.ImageUrl); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -115,4 +115,20 @@ func (q *Queries) SearchArtists(ctx context.Context, arg SearchArtistsParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateArtistImageURL = `-- name: UpdateArtistImageURL :exec
+UPDATE artists
+SET image_url = $2
+WHERE id = $1
+`
+
+type UpdateArtistImageURLParams struct {
+	ID       pgtype.UUID `json:"id"`
+	ImageUrl string      `json:"image_url"`
+}
+
+func (q *Queries) UpdateArtistImageURL(ctx context.Context, arg UpdateArtistImageURLParams) error {
+	_, err := q.db.Exec(ctx, updateArtistImageURL, arg.ID, arg.ImageUrl)
+	return err
 }

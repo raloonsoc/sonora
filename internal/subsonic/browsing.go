@@ -26,10 +26,12 @@ type artistsIndex struct {
 }
 
 type artistEntry struct {
-	ID         string     `json:"id" xml:"id,attr"`
-	Name       string     `json:"name" xml:"name,attr"`
-	AlbumCount int        `json:"albumCount" xml:"albumCount,attr"`
-	Starred    *time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
+	ID             string     `json:"id" xml:"id,attr"`
+	Name           string     `json:"name" xml:"name,attr"`
+	CoverArt       string     `json:"coverArt,omitempty" xml:"coverArt,attr,omitempty"`
+	ArtistImageUrl string     `json:"artistImageUrl,omitempty" xml:"artistImageUrl,attr,omitempty"`
+	AlbumCount     int        `json:"albumCount" xml:"albumCount,attr"`
+	Starred        *time.Time `json:"starred,omitempty" xml:"starred,attr,omitempty"`
 }
 
 // Song types
@@ -139,10 +141,13 @@ type artistWithAlbumsSubsonicResponse struct {
 }
 
 type artistWithAlbums struct {
-	ID         string       `json:"id" xml:"id,attr"`
-	Name       string       `json:"name" xml:"name,attr"`
-	AlbumCount int          `json:"albumCount" xml:"albumCount,attr"`
-	Album      []albumEntry `json:"album" xml:"album"`
+	ID             string       `json:"id" xml:"id,attr"`
+	Name           string       `json:"name" xml:"name,attr"`
+	CoverArt       string       `json:"coverArt,omitempty" xml:"coverArt,attr,omitempty"`
+	ArtistImageUrl string       `json:"artistImageUrl,omitempty" xml:"artistImageUrl,attr,omitempty"`
+	AlbumCount     int          `json:"albumCount" xml:"albumCount,attr"`
+	Starred        *time.Time   `json:"starred,omitempty" xml:"starred,attr,omitempty"`
+	Album          []albumEntry `json:"album" xml:"album"`
 }
 
 // Search3 types
@@ -164,12 +169,31 @@ func (h *Handler) GetArtistsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	username := r.URL.Query().Get("u")
+	user, err := h.Queries.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	grouped := make(map[string][]artistEntry)
 	for _, a := range artists {
+		var starred *time.Time
+		if starredAt, err := h.Queries.GetStarredAt(r.Context(), sqlc.GetStarredAtParams{
+			UserID:   user.ID,
+			ItemType: "artist",
+			ItemID:   a.ID,
+		}); err == nil {
+			starred = &starredAt.Time
+		}
+
 		letter := strings.ToUpper(string(a.Name[0]))
 		grouped[letter] = append(grouped[letter], artistEntry{
-			ID:   a.ID.String(),
-			Name: a.Name,
+			ID:             a.ID.String(),
+			Name:           a.Name,
+			CoverArt:       a.ID.String(),
+			ArtistImageUrl: a.ImageUrl,
+			Starred:        starred,
 		})
 	}
 	letters := make([]string, 0, len(grouped))
@@ -426,13 +450,32 @@ func (h *Handler) GetArtistHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	username := r.URL.Query().Get("u")
+	user, err := h.Queries.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var starred *time.Time
+	if starredAt, err := h.Queries.GetStarredAt(r.Context(), sqlc.GetStarredAtParams{
+		UserID:   user.ID,
+		ItemType: "artist",
+		ItemID:   artist.ID,
+	}); err == nil {
+		starred = &starredAt.Time
+	}
+
 	encodeResponse(w, r, artistWithAlbumsSubsonicResponse{
 		baseResponse: newBaseResponse(),
 		Artist: artistWithAlbums{
-			ID:         artist.ID.String(),
-			Name:       artist.Name,
-			AlbumCount: len(items),
-			Album:      items,
+			ID:             artist.ID.String(),
+			Name:           artist.Name,
+			CoverArt:       artist.ID.String(),
+			ArtistImageUrl: artist.ImageUrl,
+			AlbumCount:     len(items),
+			Starred:        starred,
+			Album:          items,
 		},
 	})
 }

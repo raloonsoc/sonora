@@ -195,3 +195,154 @@ func TestGetAlbumHandler_MissingID(t *testing.T) {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 }
+
+func TestGetArtistsHandler_ExposesCoverArtAndImageURL(t *testing.T) {
+	queries := testQueries(t)
+	seedUser(t, queries, "alice", "pw")
+	artist := seedNamedArtist(t, queries, "Photographed Artist")
+	if err := queries.UpdateArtistImageURL(t.Context(), sqlc.UpdateArtistImageURLParams{
+		ID: artist.ID, ImageUrl: "https://example.com/photo.jpg",
+	}); err != nil {
+		t.Fatalf("seeding artist image: %v", err)
+	}
+
+	h := &Handler{Queries: queries}
+	req := httptest.NewRequest(http.MethodGet, "/rest/getArtists?u=alice&f=json", nil)
+	rec := httptest.NewRecorder()
+	h.GetArtistsHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		SubsonicResponse struct {
+			Artists struct {
+				Index []struct {
+					Artist []map[string]any `json:"artist"`
+				} `json:"index"`
+			} `json:"artists"`
+		} `json:"subsonic-response"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decoding JSON response: %v\nbody: %s", err, rec.Body.String())
+	}
+
+	found := payload.SubsonicResponse.Artists.Index[0].Artist[0]
+	if found["coverArt"] != artist.ID.String() {
+		t.Errorf("coverArt = %v, want %q", found["coverArt"], artist.ID.String())
+	}
+	if found["artistImageUrl"] != "https://example.com/photo.jpg" {
+		t.Errorf("artistImageUrl = %v, want %q", found["artistImageUrl"], "https://example.com/photo.jpg")
+	}
+}
+
+// An artist with no image_url must not report a made-up artistImageUrl —
+// the field should simply be absent, same convention as Starred.
+func TestGetArtistsHandler_NoImageOmitsArtistImageUrl(t *testing.T) {
+	queries := testQueries(t)
+	seedUser(t, queries, "alice", "pw")
+	seedNamedArtist(t, queries, "No Photo Artist")
+
+	h := &Handler{Queries: queries}
+	req := httptest.NewRequest(http.MethodGet, "/rest/getArtists?u=alice&f=json", nil)
+	rec := httptest.NewRecorder()
+	h.GetArtistsHandler(rec, req)
+
+	var payload struct {
+		SubsonicResponse struct {
+			Artists struct {
+				Index []struct {
+					Artist []map[string]any `json:"artist"`
+				} `json:"index"`
+			} `json:"artists"`
+		} `json:"subsonic-response"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decoding JSON response: %v\nbody: %s", err, rec.Body.String())
+	}
+
+	found := payload.SubsonicResponse.Artists.Index[0].Artist[0]
+	if _, present := found["artistImageUrl"]; present {
+		t.Errorf("artistImageUrl = %v, want field absent for an artist with no image", found["artistImageUrl"])
+	}
+}
+
+func TestGetArtistsHandler_MarksStarredArtists(t *testing.T) {
+	queries := testQueries(t)
+	user := seedUser(t, queries, "alice", "pw")
+	artist := seedNamedArtist(t, queries, "Starred Artist")
+	if err := queries.StarItem(t.Context(), starItemParams(user.ID, "artist", artist.ID)); err != nil {
+		t.Fatalf("starring artist: %v", err)
+	}
+
+	h := &Handler{Queries: queries}
+	req := httptest.NewRequest(http.MethodGet, "/rest/getArtists?u=alice&f=json", nil)
+	rec := httptest.NewRecorder()
+	h.GetArtistsHandler(rec, req)
+
+	var payload struct {
+		SubsonicResponse struct {
+			Artists struct {
+				Index []struct {
+					Artist []map[string]any `json:"artist"`
+				} `json:"index"`
+			} `json:"artists"`
+		} `json:"subsonic-response"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decoding JSON response: %v\nbody: %s", err, rec.Body.String())
+	}
+
+	found := payload.SubsonicResponse.Artists.Index[0].Artist[0]
+	if _, present := found["starred"]; !present {
+		t.Error(`starred artist is missing its "starred" field in getArtists`)
+	}
+}
+
+func TestGetArtistHandler_ExposesCoverArtImageURLAndStarred(t *testing.T) {
+	queries := testQueries(t)
+	user := seedUser(t, queries, "alice", "pw")
+	artist := seedNamedArtist(t, queries, "Full Artist")
+	if err := queries.UpdateArtistImageURL(t.Context(), sqlc.UpdateArtistImageURLParams{
+		ID: artist.ID, ImageUrl: "https://example.com/full.jpg",
+	}); err != nil {
+		t.Fatalf("seeding artist image: %v", err)
+	}
+	if err := queries.StarItem(t.Context(), starItemParams(user.ID, "artist", artist.ID)); err != nil {
+		t.Fatalf("starring artist: %v", err)
+	}
+
+	h := &Handler{Queries: queries}
+	req := httptest.NewRequest(http.MethodGet, "/rest/getArtist?u=alice&id="+artist.ID.String()+"&f=json", nil)
+	rec := httptest.NewRecorder()
+	h.GetArtistHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		SubsonicResponse struct {
+			Artist struct {
+				CoverArt       string `json:"coverArt"`
+				ArtistImageUrl string `json:"artistImageUrl"`
+				Starred        string `json:"starred"`
+			} `json:"artist"`
+		} `json:"subsonic-response"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decoding JSON response: %v\nbody: %s", err, rec.Body.String())
+	}
+
+	got := payload.SubsonicResponse.Artist
+	if got.CoverArt != artist.ID.String() {
+		t.Errorf("coverArt = %q, want %q", got.CoverArt, artist.ID.String())
+	}
+	if got.ArtistImageUrl != "https://example.com/full.jpg" {
+		t.Errorf("artistImageUrl = %q, want %q", got.ArtistImageUrl, "https://example.com/full.jpg")
+	}
+	if got.Starred == "" {
+		t.Error(`starred artist is missing its "starred" timestamp in getArtist`)
+	}
+}

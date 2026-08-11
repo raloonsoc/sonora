@@ -92,7 +92,7 @@ func (q *Queries) ListStarredAlbums(ctx context.Context, userID pgtype.UUID) ([]
 }
 
 const listStarredArtists = `-- name: ListStarredArtists :many
-SELECT artists.id, artists.name, starred_items.starred_at
+SELECT artists.id, artists.name, artists.image_url, starred_items.starred_at
 FROM artists
 JOIN starred_items ON starred_items.item_type = 'artist' AND starred_items.item_id = artists.id
 WHERE starred_items.user_id = $1
@@ -102,6 +102,7 @@ ORDER BY starred_items.starred_at
 type ListStarredArtistsRow struct {
 	ID        pgtype.UUID        `json:"id"`
 	Name      string             `json:"name"`
+	ImageUrl  string             `json:"image_url"`
 	StarredAt pgtype.Timestamptz `json:"starred_at"`
 }
 
@@ -114,7 +115,12 @@ func (q *Queries) ListStarredArtists(ctx context.Context, userID pgtype.UUID) ([
 	var items []ListStarredArtistsRow
 	for rows.Next() {
 		var i ListStarredArtistsRow
-		if err := rows.Scan(&i.ID, &i.Name, &i.StarredAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.ImageUrl,
+			&i.StarredAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
