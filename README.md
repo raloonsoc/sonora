@@ -53,7 +53,7 @@ you into their own client. Sonora takes the opposite position:
 |---|---|
 | **One static binary** | No JVM, no Node, no sprawling dependency tree. Runs on constrained hardware — Raspberry Pi, small VPS, a Proxmox LXC. |
 | **Bring your own client** | OpenSubsonic-compatible, so the existing client ecosystem works immediately. You are not locked into a first-party app. |
-| **Fidelity first** | Bit-perfect FLAC passthrough by default. Transcoding happens only when the source exceeds what clients reliably handle. |
+| **Fidelity first** | Bit-perfect FLAC passthrough by default. Transcoding happens only when the source exceeds what clients reliably handle, and the client picks the target format. |
 | **Terminal-native** | A Bubble Tea TUI client is developed alongside the server for people who live in a terminal. |
 | **Legally clean by design** | Sonora serves a library you already own. There is no scraping, downloading, or acquisition tooling here — and that is a deliberate scope boundary, not an oversight. |
 
@@ -189,15 +189,34 @@ ordered artist list, while a single primary artist is retained per track.
 ### Streaming
 
 ```
-GET /rest/stream?id=…
+GET /rest/stream?id=…&format=…
    │
-   ├─ sample rate ≤ 48kHz → FLAC/original passthrough, bit-perfect
-   └─ sample rate > 48kHz → on-demand Opus 128k transcode
-                             ├─ cached on local disk
-                             ├─ per-path mutex (no duplicate work on
-                             │   concurrent requests for the same track)
+   ├─ sample rate ≤ 48kHz, or format=raw → FLAC/original passthrough,
+   │                                        bit-perfect
+   └─ sample rate > 48kHz → on-demand transcode
+                             ├─ format=aac → AAC 192k in a fragmented MP4
+                             │   container (not raw ADTS — Safari, macOS/
+                             │   iOS apps, and Amperfy fail to play plain
+                             │   ADTS AAC)
+                             ├─ format=mp3 → MP3 192k, the closest thing
+                             │   to a universal fallback
+                             ├─ no format, or anything else → Opus 128k
+                             │   (default: best fidelity per bit of the
+                             │   three, but the least universally
+                             │   supported)
+                             ├─ cached on local disk, one file per
+                             │   (track, format) pair
+                             ├─ per-path mutex (no duplicate transcode on
+                             │   concurrent requests for the same track),
+                             │   bounded by SONORA_TRANSCODE_WORKERS
+                             │   concurrent ffmpeg processes
                              └─ swept after 30 days
 ```
+
+`format` follows the OpenSubsonic `stream` parameter: clients that can't
+decode Opus (Amperfy is the concrete case this was built for) ask for
+`aac` or `mp3` instead, rather than being force-fed a format they can't
+play.
 
 All streaming goes through `http.ServeContent`, so HTTP Range requests —
 seeking, resuming — are handled correctly.
@@ -286,8 +305,9 @@ clients use the ID3 endpoints.
 - Full ingestion pipeline: metadata, ReplayGain (EBU R128), cover art with
   iTunes fallback, artist/album dedup, multi-artist parsing.
 - Chromaprint fingerprinting for duplicate detection.
-- Streaming with Range support, FLAC passthrough, on-demand Opus transcode
-  with per-path locking and a 30-day cache sweep.
+- Streaming with Range support, FLAC passthrough, on-demand transcode
+  (Opus/AAC/MP3, negotiated via the OpenSubsonic `format` param) with
+  bounded concurrency, per-path locking, and a 30-day cache sweep.
 - bcrypt + AES-256-GCM credential storage, Subsonic token auth, and
   `sonora create-user` provisioning.
 - Synced lyrics: `.lrc` parser plus LRCLIB fallback.
