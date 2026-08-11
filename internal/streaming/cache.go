@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,9 +20,24 @@ func CacheExists(path string) bool {
 
 var transcodeLocks sync.Map
 
-func lockForPath(path string) *sync.Mutex {
-	actual, _ := transcodeLocks.LoadOrStore(path, &sync.Mutex{})
-	return actual.(*sync.Mutex)
+type trackLock struct {
+	mu       sync.Mutex
+	refCount atomic.Int64
+}
+
+func lockForPath(path string) *trackLock {
+	actual, _ := transcodeLocks.LoadOrStore(path, &trackLock{})
+	lock := actual.(*trackLock)
+	lock.refCount.Add(1)
+	lock.mu.Lock()
+	return lock
+}
+
+func unlockForPath(path string, lock *trackLock) {
+	lock.mu.Unlock()
+	if lock.refCount.Add(-1) == 0 {
+		transcodeLocks.Delete(path)
+	}
 }
 
 func CleanupExpiredCache(cacheDir string, maxAge time.Duration) error {

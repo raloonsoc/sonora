@@ -11,6 +11,7 @@ import (
 type Handler struct {
 	Queries           *sqlc.Queries
 	TranscodeCacheDir string
+	TranscodeSem      chan struct{}
 }
 
 func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +23,7 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 
 	var trackID pgtype.UUID
 	if err := trackID.Scan(idParam); err != nil {
-		http.Error(w, "invalid id paramater", http.StatusBadRequest)
+		http.Error(w, "invalid id parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -36,15 +37,20 @@ func (h *Handler) StreamHandler(w http.ResponseWriter, r *http.Request) {
 	if track.SampleRate > 48000 {
 		cachePath := CachePath(h.TranscodeCacheDir, track.ID.String())
 		mu := lockForPath(cachePath)
-		mu.Lock()
 		if !CacheExists(cachePath) {
-			if err := TranscodeToOpus(track.Path, cachePath); err != nil {
-				mu.Unlock()
+			err := func() error {
+				h.TranscodeSem <- struct{}{}
+				defer func() { <-h.TranscodeSem }()
+				return TranscodeToOpus(track.Path, cachePath)
+			}()
+
+			if err != nil {
+				unlockForPath(cachePath, mu)
 				http.Error(w, "transcode failed", http.StatusInternalServerError)
 				return
 			}
 		}
-		mu.Unlock()
+		unlockForPath(cachePath, mu)
 		sourcePath = cachePath
 	}
 

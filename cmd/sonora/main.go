@@ -46,7 +46,7 @@ func main() {
 	}
 
 	queries := sqlc.New(pool)
-	handler := &streaming.Handler{Queries: queries, TranscodeCacheDir: filepath.Join(cfg.TranscodeCachePath, "transcodes")}
+	handler := &streaming.Handler{Queries: queries, TranscodeCacheDir: filepath.Join(cfg.TranscodeCachePath, "transcodes"), TranscodeSem: make(chan struct{}, cfg.TranscodeWorkers)}
 
 	mux := subsonic.NewRouter(&subsonic.Handler{Queries: queries, LyricsLRCLIBFallback: cfg.LyricsLRCLIBFallback}, handler)
 
